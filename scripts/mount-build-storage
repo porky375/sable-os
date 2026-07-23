@@ -50,4 +50,3 @@ fi
 "$script_dir/create-build-workspace" "$mount_point"
 touch "$mount_point/.sable-build-volume"
 printf 'SABLE_BUILD_ROOT=%s\n' "$mount_point"
-

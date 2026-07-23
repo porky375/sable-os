@@ -85,4 +85,3 @@ trap - EXIT
 
 printf 'Prepared %d GiB Sable build image: %s\n' "$size_gib" "$image"
 printf 'Mount it with: %s/mount-build-storage %q\n' "$script_dir" "$image"
-

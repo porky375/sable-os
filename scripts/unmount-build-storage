@@ -24,4 +24,3 @@ if findmnt -rn -S "$loop_device" >/dev/null; then
 fi
 udisksctl loop-delete -b "$loop_device" >/dev/null
 printf 'Unmounted Sable build storage: %s\n' "$image"
-
