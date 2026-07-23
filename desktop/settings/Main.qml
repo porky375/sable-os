@@ -9,7 +9,7 @@ ApplicationWindow {
     height: 680
     minimumWidth: 760
     minimumHeight: 520
-    title: "os_name Settings"
+    title: "Sable Settings"
     color: "#101010"
 
     property int selectedSection: 0
@@ -34,7 +34,7 @@ ApplicationWindow {
                 spacing: 8
 
                 Label {
-                    text: "os_name"
+                    text: "Sable"
                     color: "#ffffff"
                     font.pixelSize: 20
                     font.bold: true

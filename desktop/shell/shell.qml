@@ -161,7 +161,7 @@ Scope {
                     Layout.fillWidth: true
 
                     Label {
-                        text: "os_name"
+                        text: "Sable"
                         color: "#ffffff"
                         font.pixelSize: 18
                         font.bold: true

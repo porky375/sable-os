@@ -21,24 +21,24 @@ case "$channel" in
     *) printf 'invalid channel: %s\n' "$channel" >&2; exit 2 ;;
 esac
 case "$repository" in
-    os-core|os-desktop|os-extra) ;;
+    sable-core|sable-desktop|sable-extra) ;;
     *) printf 'invalid repository: %s\n' "$repository" >&2; exit 2 ;;
 esac
 [[ "$#" -gt 0 ]] || {
     printf 'at least one package file is required\n' >&2
     exit 2
 }
-[[ -n "${OS_NAME_SIGNING_KEY:-}" ]] || {
-    printf 'OS_NAME_SIGNING_KEY is not set\n' >&2
+[[ -n "${SABLE_SIGNING_KEY:-}" ]] || {
+    printf 'SABLE_SIGNING_KEY is not set\n' >&2
     exit 1
 }
-if [[ "$channel" == "stable" && "${OS_NAME_PROMOTE:-}" != "YES" ]]; then
-    printf 'stable publication requires OS_NAME_PROMOTE=YES\n' >&2
+if [[ "$channel" == "stable" && "${SABLE_PROMOTE:-}" != "YES" ]]; then
+    printf 'stable publication requires SABLE_PROMOTE=YES\n' >&2
     exit 1
 fi
 
 build_root="$(require_build_root)"
-destination="$build_root/repositories/$channel/$repository/$OS_ARCH"
+destination="$build_root/repositories/$channel/$repository/$SABLE_ARCH"
 mkdir -p -- "$destination"
 
 published=()
@@ -59,11 +59,11 @@ for package_path in "$@"; do
 
     package_name="$(basename -- "$package_path")"
     install -m 0644 -- "$package_path" "$destination/$package_name"
-    gpg --batch --yes --local-user "$OS_NAME_SIGNING_KEY" \
+    gpg --batch --yes --local-user "$SABLE_SIGNING_KEY" \
         --detach-sign "$destination/$package_name"
     published+=("$destination/$package_name")
 done
 
 database="$destination/$repository.db.tar.zst"
-repo-add --sign --key "$OS_NAME_SIGNING_KEY" "$database" "${published[@]}"
+repo-add --sign --key "$SABLE_SIGNING_KEY" "$database" "${published[@]}"
 printf 'Published %d package(s) to %s\n' "${#published[@]}" "$destination"

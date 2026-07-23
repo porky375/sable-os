@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "org.os_name.theme.monochrome",
+  "id": "org.sable.theme.monochrome",
   "name": "Monochrome",
   "description": "The accessible black, white, and neutral default theme.",
   "version": "0.1.0",

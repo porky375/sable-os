@@ -1,6 +1,6 @@
 timeout: 2
 default_entry: 1
-interface_branding: os_name
+interface_branding: Sable
 interface_branding_color: 7
 interface_help_hidden: yes
 term_background: 00101010
@@ -8,17 +8,17 @@ term_foreground: f4f4f5
 term_palette: 101010;ef4444;22c55e;eab308;3b82f6;a855f7;06b6d4;d4d4d8
 term_palette_bright: 27272a;f87171;4ade80;facc15;60a5fa;c084fc;22d3ee;ffffff
 
-/os_name
+/Sable
     protocol: linux
-    path: boot():/EFI/os_name/vmlinuz-linux-lts
-    module_path: boot():/EFI/os_name/initramfs-linux-lts.img
+    path: boot():/EFI/sable/vmlinuz-linux-lts
+    module_path: boot():/EFI/sable/initramfs-linux-lts.img
     cmdline: root=UUID=@ROOT_UUID@ rootflags=subvol=@ rw quiet
 
 /+Advanced options
-//os_name current kernel
+//Sable current kernel
     protocol: linux
-    path: boot():/EFI/os_name/vmlinuz-linux
-    module_path: boot():/EFI/os_name/initramfs-linux.img
+    path: boot():/EFI/sable/vmlinuz-linux
+    module_path: boot():/EFI/sable/initramfs-linux.img
     cmdline: root=UUID=@ROOT_UUID@ rootflags=subvol=@ rw
 
 @RECOVERY_ENTRIES@

@@ -1,9 +1,9 @@
-pkgname=os-name-base
+pkgname=sable-base
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Base system metapackage for os_name'
+pkgdesc='Base system metapackage for Sable'
 arch=('any')
-url='https://github.com/porky375/os_name'
+url='https://github.com/porky375/sable-os'
 license=('MIT')
 depends=(
     apparmor
@@ -22,7 +22,7 @@ depends=(
     mkinitcpio
     networkmanager
     nftables
-    os-name-release
+    sable-release
     pipewire
     pipewire-alsa
     pipewire-pulse
@@ -36,5 +36,5 @@ depends=(
 )
 
 package() {
-    install -d "$pkgdir/usr/share/os_name"
+    install -d "$pkgdir/usr/share/sable"
 }

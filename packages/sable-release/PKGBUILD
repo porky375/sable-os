@@ -1,9 +1,9 @@
-pkgname=os-name-release
+pkgname=sable-release
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Release identity and repository configuration for os_name'
+pkgdesc='Release identity and repository configuration for Sable'
 arch=('any')
-url='https://github.com/porky375/os_name'
+url='https://github.com/porky375/sable-os'
 license=('MIT')
 backup=('etc/os-release' 'etc/pacman.conf')
 source=('os-release' 'pacman.conf')

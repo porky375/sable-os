@@ -38,5 +38,5 @@ CachyOS, AUR, or other parent-distribution repository is configured.
 
 ## Naming
 
-Project-owned packages use the `os-name-` prefix. The product and visible
-branding use the exact name `os_name`.
+Project-owned packages use the `sable-` prefix. The product and visible
+branding use the exact name `Sable`.

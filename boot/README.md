@@ -9,4 +9,4 @@ Windows chainloading is added only when
 Windows EFI files.
 
 Recovery entries use immutable snapshot metadata. At least two known-good
-kernel and initramfs sets remain under `EFI/os_name`.
+kernel and initramfs sets remain under `EFI/sable`.

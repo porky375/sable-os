@@ -1,6 +1,6 @@
-# os_name
+# Sable
 
-`os_name` is an independent x86-64 Linux desktop distribution project. It
+Sable is an independent x86-64 Linux desktop distribution project. It
 integrates upstream Linux components into its own signed pacman repositories,
 installer, recovery model, and Wayland desktop.
 
@@ -12,7 +12,7 @@ important data.
 
 - Linux LTS by default, with a tested current kernel as an option.
 - glibc, systemd, Mesa, NetworkManager, PipeWire, AppArmor, and Btrfs.
-- Hyprland with an `os_name` shell, settings application, and pinned decoration
+- Hyprland with a Sable shell, settings application, and pinned decoration
   plugin.
 - Signed pacman repositories promoted from `testing` to `stable`.
 - Calamares installer, Limine boot manager, LUKS2 option, and root-only
@@ -51,12 +51,13 @@ Run repository validation:
 Create a build workspace on a writable volume with at least 100 GiB free:
 
 ```bash
-./scripts/create-build-workspace /path/to/os-name-builds
+./scripts/prepare-build-storage /path/to/writable/data-volume
+./scripts/mount-build-storage /path/to/writable/data-volume/sable-build.ext4
 ```
 
-The current machine's 1 TB `ExtraStorage` NTFS volume is read-only. Do not
-force-mount it or clear its Windows hibernation flag from Linux. Shut Windows
-down fully and repair the filesystem there before selecting it as a build
+The current machine's 1 TB and 2 TB NTFS data volumes mount read-only. Do not
+force-mount them or clear Windows hibernation flags from Linux. Shut Windows
+down fully and repair the selected filesystem there before preparing the build
 workspace.
 
 See [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) before continuing substantial

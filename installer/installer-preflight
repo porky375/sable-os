@@ -5,7 +5,7 @@ set -euo pipefail
 errors=()
 warnings=()
 
-[[ -d /sys/firmware/efi ]] || errors+=("os_name alpha requires UEFI")
+[[ -d /sys/firmware/efi ]] || errors+=("Sable alpha requires UEFI")
 
 if lsblk -J -o NAME,FSTYPE,LABEL 2>/dev/null |
     jq -e '.. | objects | select((.fstype // "" | ascii_downcase) == "bitlocker")' \

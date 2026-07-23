@@ -1,9 +1,9 @@
-pkgname=os-name-desktop
+pkgname=sable-desktop
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Desktop metapackage for os_name'
+pkgdesc='Desktop metapackage for Sable'
 arch=('any')
-url='https://github.com/porky375/os_name'
+url='https://github.com/porky375/sable-os'
 license=('MIT')
 depends=(
     grim
@@ -13,7 +13,7 @@ depends=(
     hyprpaper
     kitty
     mesa
-    os-name-desktopd
+    sable-desktopd
     pipewire
     quickshell
     slurp
@@ -25,5 +25,5 @@ depends=(
 )
 
 package() {
-    install -d "$pkgdir/usr/share/os_name"
+    install -d "$pkgdir/usr/share/sable"
 }

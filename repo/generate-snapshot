@@ -28,8 +28,8 @@ repository_root="$build_root/repositories/$channel"
 temporary="$(mktemp)"
 trap 'rm -f -- "$temporary"' EXIT
 
-for repository in os-core os-desktop os-extra; do
-    package_directory="$repository_root/$repository/$OS_ARCH"
+for repository in sable-core sable-desktop sable-extra; do
+    package_directory="$repository_root/$repository/$SABLE_ARCH"
     [[ -d "$package_directory" ]] || continue
     while IFS= read -r -d '' package_path; do
         package_info="$(bsdtar -xOf "$package_path" .PKGINFO)"
@@ -66,11 +66,11 @@ jq -n \
         channel: $channel,
         architecture: "x86_64",
         publishedAt: $published_at,
-        repositories: ["os-core", "os-desktop", "os-extra"],
+        repositories: ["sable-core", "sable-desktop", "sable-extra"],
         packages: $packages,
         boot: {
-            kernel: "/EFI/os_name/vmlinuz-linux-lts",
-            initramfs: "/EFI/os_name/initramfs-linux-lts.img",
+            kernel: "/EFI/sable/vmlinuz-linux-lts",
+            initramfs: "/EFI/sable/initramfs-linux-lts.img",
             rootSubvolume: "@"
         }
     }' > "$output"

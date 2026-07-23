@@ -2,9 +2,9 @@ base
 linux-lts
 linux-firmware
 mkinitcpio
-os-name-base
-os-name-desktop
-os-name-security-core
+sable-base
+sable-desktop
+sable-security-core
 calamares
 networkmanager
 flatpak

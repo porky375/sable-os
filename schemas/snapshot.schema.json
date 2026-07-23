@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.example.invalid/os_name/snapshot-v1.json",
-  "title": "os_name repository snapshot",
+  "$id": "https://schemas.example.invalid/sable/snapshot-v1.json",
+  "title": "Sable repository snapshot",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -41,9 +41,9 @@
       "uniqueItems": true,
       "items": {
         "enum": [
-          "os-core",
-          "os-desktop",
-          "os-extra"
+          "sable-core",
+          "sable-desktop",
+          "sable-extra"
         ]
       }
     },
@@ -70,9 +70,9 @@
           },
           "repository": {
             "enum": [
-              "os-core",
-              "os-desktop",
-              "os-extra"
+              "sable-core",
+              "sable-desktop",
+              "sable-extra"
             ]
           },
           "sha256": {

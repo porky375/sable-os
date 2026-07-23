@@ -31,4 +31,4 @@ if (( available_kib < 100 * 1024 * 1024 )); then
 fi
 
 printf 'Build workspace ready: %s\n' "$target"
-printf 'export OS_NAME_BUILD_ROOT=%q\n' "$target"
+printf 'export SABLE_BUILD_ROOT=%q\n' "$target"

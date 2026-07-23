@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.example.invalid/os_name/desktop-pack-v1.json",
-  "title": "os_name desktop pack",
+  "$id": "https://schemas.example.invalid/sable/desktop-pack-v1.json",
+  "title": "Sable desktop pack",
   "type": "object",
   "additionalProperties": false,
   "required": [

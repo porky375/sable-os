@@ -1,9 +1,9 @@
-pkgname=os-name-gaming
+pkgname=sable-gaming
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Gaming integration for os_name'
+pkgdesc='Gaming integration for Sable'
 arch=('x86_64')
-url='https://github.com/porky375/os_name'
+url='https://github.com/porky375/sable-os'
 license=('MIT')
 depends=(
     gamemode
@@ -19,5 +19,5 @@ depends=(
 )
 
 package() {
-    install -d "$pkgdir/usr/share/os_name"
+    install -d "$pkgdir/usr/share/sable"
 }

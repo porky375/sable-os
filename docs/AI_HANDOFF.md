@@ -4,7 +4,7 @@ Last updated: 2026-07-23
 
 ## Mission
 
-Build `os_name` into an independent, installable Linux desktop distribution.
+Build Sable into an independent, installable Linux desktop distribution.
 The runtime must use only project repositories plus explicitly configured
 Flatpak remotes. Arch/CachyOS may seed the bootstrap toolchain, but may not
 remain in the final dependency closure.
@@ -22,22 +22,23 @@ Foundation milestone:
 
 - Host: CachyOS, x86-64, Hyprland/Wayland.
 - CPU/GPU target available: AMD desktop with Radeon RX 7600 class graphics.
-- Source checkout: `~/Projects/os_name`.
-- Public repository: `https://github.com/porky375/os_name`.
+- Source checkout: `~/Projects/sable-os`.
+- Public repository: `https://github.com/porky375/sable-os`.
 - Default branch: `main`; implementation changes use `agent/*` branches and
   draft pull requests.
 - Root filesystem: Btrfs, approximately 14 GiB free at project creation.
 - Candidate build disk: `/dev/sda2`, label `ExtraStorage`, 660 GiB free.
-- Blocker: `/dev/sda2` mounted read-only at
-  `/run/media/thomash/ExtraStorage`. Do not force it writable. Windows must be
-  fully shut down and the NTFS volume repaired before it can host builds.
+- Secondary candidate: `/dev/sdb2`, label `2TB`, 356 GiB free.
+- Blocker: both NTFS candidates mount read-only. Do not force either writable.
+  Windows must be fully shut down and the selected NTFS volume repaired before
+  it can host the contained Linux build image.
 - Missing host tools at project creation: `archiso`, QEMU, CMake, Calamares,
   and ShellCheck. `sudo` requires interactive authentication.
 
 ## Architecture Decisions
 
 - Package manager: pacman/makepkg with project-owned signed repositories.
-- Repositories: `os-core`, `os-desktop`, `os-extra`; `testing` and `stable`.
+- Repositories: `sable-core`, `sable-desktop`, `sable-extra`; `testing` and `stable`.
 - Core: glibc, systemd, Linux LTS, Mesa, NetworkManager, PipeWire, Btrfs.
 - Desktop: pinned Hyprland, QuickShell/QML shell, Rust state service, Qt/QML
   settings, and a C++ version-pinned decoration plugin.
@@ -51,8 +52,8 @@ Foundation milestone:
 
 ## Interfaces
 
-- D-Bus service: `org.os_name.Desktop1`
-- D-Bus object: `/org/os_name/Desktop1`
+- D-Bus service: `org.sable.Desktop1`
+- D-Bus object: `/org/sable/Desktop1`
 - Customization pack schema: `schemas/desktop-pack.schema.json`
 - Snapshot schema: `schemas/snapshot.schema.json`
 - Project identity source: `config/project.env`
@@ -63,23 +64,34 @@ an update to this document.
 ## Safe Commands
 
 ```bash
-cd ~/Projects/os_name
+cd ~/Projects/sable-os
 ./scripts/doctor
 ./scripts/check
 cargo test --workspace
 ```
 
 Commands that create package, ISO, or VM artifacts must set
-`OS_NAME_BUILD_ROOT` to a dedicated writable volume. Never default large builds
+`SABLE_BUILD_ROOT` to a dedicated writable volume. Never default large builds
 to `/home`.
+
+After Windows has fully released a data volume:
+
+```bash
+./scripts/prepare-build-storage /run/media/$USER/ExtraStorage 160
+./scripts/mount-build-storage /run/media/$USER/ExtraStorage/sable-build.ext4
+```
+
+The first command creates only a regular ext4 image file. It does not resize,
+format, or otherwise modify a physical partition.
 
 ## Next Work
 
-1. Obtain a writable build volume with at least 100 GiB free.
+1. Fully shut down Windows, repair the selected NTFS data volume if required,
+   then run the safe build-storage preparation commands above.
 2. Install host dependencies using `scripts/bootstrap-host` after reviewing its
    package list and authenticating `sudo`.
 3. Complete the stage-0 package manifest and pin upstream source revisions.
-4. Build the first clean-chroot `os-core` package set.
+4. Build the first clean-chroot `sable-core` package set.
 5. Generate an unsigned developer repository, then establish offline release
    signing before any public promotion.
 6. Boot the root filesystem under QEMU/OVMF.
@@ -106,7 +118,7 @@ Validation completed on 2026-07-23:
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - `qmllint desktop/shell/shell.qml`: passed.
 - `qmllint desktop/settings/Main.qml`: passed.
-- D-Bus smoke test: registered `org.os_name.Desktop1`, then created, renamed,
+- D-Bus smoke test: registered `org.sable.Desktop1`, then created, renamed,
   reordered, and listed a workspace successfully.
 - Limine rendering smoke test: generated LTS, current, recovery, and Windows
   chainload entries.
@@ -114,11 +126,17 @@ Validation completed on 2026-07-23:
   filesystem.
 - GitHub Actions PR validation: passed formatting, Clippy, tests, ShellCheck,
   repository checks, and checkout post-processing.
+- Sable identity migration: no stale `os_name`, `os-name`, old D-Bus, old
+  repository, or old package identifiers remain.
+- Renamed D-Bus smoke test: `org.sable.Desktop1` successfully created, renamed,
+  reordered, and listed a workspace.
+- Storage safety test: the preparation helper rejected the read-only 2 TB NTFS
+  volume before creating any file.
 
 Known blockers:
 
 - Host build dependencies need interactive sudo authentication.
-- The large NTFS volume is read-only and must not be forced writable.
+- Both large NTFS volumes are read-only and must not be forced writable.
 - Stage-0 source revisions and hashes are intentionally unpinned.
 - The ISO repository URL is intentionally invalid until hosting exists.
 - Physical Limine installation intentionally exits before writing anything.

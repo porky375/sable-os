@@ -24,13 +24,13 @@ recipe="$(readlink -m -- "$recipe")"
 }
 
 build_root="$(require_build_root)"
-chroot="$build_root/chroots/os_name-$OS_ARCH"
+chroot="$build_root/chroots/sable-$SABLE_ARCH"
 package_output="$build_root/packages"
 mkdir -p -- "$chroot" "$package_output"
 
-if [[ ! -f "$chroot/root/.os-name-build-root" ]]; then
+if [[ ! -f "$chroot/root/.sable-build-root" ]]; then
     printf 'The independent build root is not initialized yet.\n' >&2
-    printf 'Stage-0 bootstrap must create %s/root/.os-name-build-root.\n' "$chroot" >&2
+    printf 'Stage-0 bootstrap must create %s/root/.sable-build-root.\n' "$chroot" >&2
     exit 1
 fi
 

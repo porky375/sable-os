@@ -1,9 +1,9 @@
-pkgname=os-name-security-core
+pkgname=sable-security-core
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Curated network diagnostics and analysis tools for os_name'
+pkgdesc='Curated network diagnostics and analysis tools for Sable'
 arch=('any')
-url='https://github.com/porky375/os_name'
+url='https://github.com/porky375/sable-os'
 license=('MIT')
 depends=(
     bind
@@ -26,5 +26,5 @@ depends=(
 )
 
 package() {
-    install -d "$pkgdir/usr/share/os_name"
+    install -d "$pkgdir/usr/share/sable"
 }
