@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command mkarchiso
+build_root="$(require_build_root)"
+
+if grep -Rq 'repo\.example\.invalid' "$project_root/iso"; then
+    printf 'replace the placeholder repository URL before building the ISO\n' >&2
+    exit 1
+fi
+if grep -Eq '^\[(core|extra|multilib|cachyos|chaotic-aur)\]$' \
+    "$project_root/iso/pacman.conf"; then
+    printf 'parent-distribution repository found in ISO pacman.conf\n' >&2
+    exit 1
+fi
+
+work_directory="$build_root/tmp/archiso"
+output_directory="$build_root/iso"
+mkdir -p -- "$work_directory" "$output_directory"
+
+printf 'mkarchiso requires root to create the live filesystem.\n'
+printf 'Profile: %s\nOutput: %s\n' "$project_root/iso" "$output_directory"
+exec mkarchiso -v -r -w "$work_directory" -o "$output_directory" \
+    "$project_root/iso"

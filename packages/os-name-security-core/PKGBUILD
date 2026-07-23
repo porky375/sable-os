@@ -1,0 +1,30 @@
+pkgname=os-name-security-core
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Curated network diagnostics and analysis tools for os_name'
+arch=('any')
+url='https://github.com/porky375/os_name'
+license=('MIT')
+depends=(
+    bind
+    curl
+    git
+    inetutils
+    iproute2
+    jq
+    mtr
+    netcat
+    nmap
+    openssl
+    ripgrep
+    socat
+    tcpdump
+    traceroute
+    wget
+    whois
+    wireshark-qt
+)
+
+package() {
+    install -d "$pkgdir/usr/share/os_name"
+}

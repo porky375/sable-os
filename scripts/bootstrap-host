@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+packages=(
+    archiso
+    base-devel
+    cmake
+    jq
+    qemu-base
+    shellcheck
+    edk2-ovmf
+)
+
+printf 'This installs host-only build dependencies:\n'
+printf '  %s\n' "${packages[*]}"
+printf '\nIt does not install os_name or change disk partitions.\n'
+printf 'Run the following command after reviewing it:\n\n'
+printf '  sudo pacman -S --needed'
+printf ' %q' "${packages[@]}"
+printf '\n'

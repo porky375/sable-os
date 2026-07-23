@@ -1,0 +1,42 @@
+schema_version = 1
+architecture = "x86_64"
+status = "UNPINNED"
+
+# This file intentionally blocks bootstrap work until every source is reviewed.
+# Replace each PIN_* value with an immutable upstream revision and SHA-256.
+
+[[component]]
+name = "binutils"
+source = "https://sourceware.org/git/binutils-gdb.git"
+revision = "PIN_BINUTILS_REVISION"
+sha256 = "PIN_BINUTILS_SHA256"
+
+[[component]]
+name = "gcc"
+source = "https://gcc.gnu.org/git/gcc.git"
+revision = "PIN_GCC_REVISION"
+sha256 = "PIN_GCC_SHA256"
+
+[[component]]
+name = "glibc"
+source = "https://sourceware.org/git/glibc.git"
+revision = "PIN_GLIBC_REVISION"
+sha256 = "PIN_GLIBC_SHA256"
+
+[[component]]
+name = "linux-lts"
+source = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+revision = "PIN_LINUX_LTS_REVISION"
+sha256 = "PIN_LINUX_LTS_SHA256"
+
+[[component]]
+name = "systemd"
+source = "https://github.com/systemd/systemd.git"
+revision = "PIN_SYSTEMD_REVISION"
+sha256 = "PIN_SYSTEMD_SHA256"
+
+[[component]]
+name = "pacman"
+source = "https://gitlab.archlinux.org/pacman/pacman.git"
+revision = "PIN_PACMAN_REVISION"
+sha256 = "PIN_PACMAN_SHA256"

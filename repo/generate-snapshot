@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+load_project_env
+
+require_command bsdtar
+require_command jq
+require_command sha256sum
+
+channel="${1:-testing}"
+case "$channel" in
+    testing|stable) ;;
+    *) printf 'invalid channel: %s\n' "$channel" >&2; exit 2 ;;
+esac
+
+build_root="$(require_build_root)"
+repository_root="$build_root/repositories/$channel"
+[[ -d "$repository_root" ]] || {
+    printf 'repository channel does not exist: %s\n' "$repository_root" >&2
+    exit 1
+}
+
+temporary="$(mktemp)"
+trap 'rm -f -- "$temporary"' EXIT
+
+for repository in os-core os-desktop os-extra; do
+    package_directory="$repository_root/$repository/$OS_ARCH"
+    [[ -d "$package_directory" ]] || continue
+    while IFS= read -r -d '' package_path; do
+        package_info="$(bsdtar -xOf "$package_path" .PKGINFO)"
+        package_name="$(awk -F ' = ' '$1 == "pkgname" { print $2; exit }' <<<"$package_info")"
+        package_version="$(awk -F ' = ' '$1 == "pkgver" { print $2; exit }' <<<"$package_info")"
+        package_hash="$(sha256sum "$package_path" | awk '{ print $1 }')"
+        jq -n \
+            --arg name "$package_name" \
+            --arg version "$package_version" \
+            --arg repository "$repository" \
+            --arg sha256 "$package_hash" \
+            '{name: $name, version: $version, repository: $repository, sha256: $sha256}' \
+            >> "$temporary"
+    done < <(find "$package_directory" -maxdepth 1 -type f \
+        -name '*.pkg.tar.*' ! -name '*.sig' -print0 | sort -z)
+done
+
+packages="$(jq -s 'sort_by(.repository, .name)' "$temporary")"
+published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+content_hash="$(printf '%s' "$packages" | sha256sum | cut -c1-12)"
+snapshot_id="$(date -u +%Y%m%dT%H%M%SZ)-$content_hash"
+output_directory="$build_root/repositories/snapshots/$channel"
+output="$output_directory/$snapshot_id.json"
+mkdir -p -- "$output_directory"
+
+jq -n \
+    --arg snapshot_id "$snapshot_id" \
+    --arg channel "$channel" \
+    --arg published_at "$published_at" \
+    --argjson packages "$packages" \
+    '{
+        schemaVersion: 1,
+        snapshotId: $snapshot_id,
+        channel: $channel,
+        architecture: "x86_64",
+        publishedAt: $published_at,
+        repositories: ["os-core", "os-desktop", "os-extra"],
+        packages: $packages,
+        boot: {
+            kernel: "/EFI/os_name/vmlinuz-linux-lts",
+            initramfs: "/EFI/os_name/initramfs-linux-lts.img",
+            rootSubvolume: "@"
+        }
+    }' > "$output"
+
+printf '%s\n' "$output"

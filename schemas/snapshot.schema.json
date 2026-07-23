@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.example.invalid/os_name/snapshot-v1.json",
+  "title": "os_name repository snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "snapshotId",
+    "channel",
+    "architecture",
+    "publishedAt",
+    "repositories",
+    "packages",
+    "boot"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "snapshotId": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8,64}$"
+    },
+    "channel": {
+      "enum": [
+        "testing",
+        "stable"
+      ]
+    },
+    "architecture": {
+      "const": "x86_64"
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repositories": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "os-core",
+          "os-desktop",
+          "os-extra"
+        ]
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "repository",
+          "sha256"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9@._+:-]+$"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "repository": {
+            "enum": [
+              "os-core",
+              "os-desktop",
+              "os-extra"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "boot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kernel",
+        "initramfs",
+        "rootSubvolume"
+      ],
+      "properties": {
+        "kernel": {
+          "type": "string",
+          "pattern": "^/[^\\u0000]+$"
+        },
+        "initramfs": {
+          "type": "string",
+          "pattern": "^/[^\\u0000]+$"
+        },
+        "rootSubvolume": {
+          "type": "string",
+          "pattern": "^@(?:[A-Za-z0-9._/-]*)$"
+        }
+      }
+    }
+  }
+}

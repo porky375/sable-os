@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+failed=0
+
+printf 'Checking JSON files...\n'
+while IFS= read -r -d '' json_file; do
+    if ! jq empty "$json_file"; then
+        failed=1
+    fi
+done < <(find "$project_root" -path "$project_root/target" -prune -o \
+    -type f -name '*.json' -print0)
+
+printf 'Checking shell syntax...\n'
+while IFS= read -r -d '' shell_file; do
+    if ! bash -n "$shell_file"; then
+        failed=1
+    fi
+done < <(find \
+    "$project_root/scripts" \
+    "$project_root/repo" \
+    "$project_root/boot" \
+    "$project_root/installer" \
+    "$project_root/iso" \
+    -type f -perm -u+x -print0 2>/dev/null)
+
+while IFS= read -r -d '' package_build; do
+    if ! bash -n "$package_build"; then
+        failed=1
+    fi
+done < <(find "$project_root/packages" -type f -name PKGBUILD -print0)
+
+if command -v shellcheck >/dev/null 2>&1; then
+    printf 'Running ShellCheck...\n'
+    mapfile -d '' shell_files < <(
+        find \
+            "$project_root/scripts" \
+            "$project_root/repo" \
+            "$project_root/boot" \
+            "$project_root/installer" \
+            "$project_root/iso" \
+            -type f -perm -u+x -print0 2>/dev/null
+    )
+    if ((${#shell_files[@]} > 0)) && ! shellcheck "${shell_files[@]}"; then
+        failed=1
+    fi
+else
+    printf 'ShellCheck not installed; syntax-only checks completed.\n'
+fi
+
+printf 'Checking Rust workspace...\n'
+if ! cargo test --workspace --manifest-path "$project_root/Cargo.toml"; then
+    failed=1
+fi
+
+if command -v qmllint >/dev/null 2>&1; then
+    printf 'Checking QML files...\n'
+    while IFS= read -r -d '' qml_file; do
+        if ! qmllint "$qml_file"; then
+            failed=1
+        fi
+    done < <(find "$project_root/desktop" -type f -name '*.qml' -print0)
+else
+    printf 'qmllint not installed; QML validation skipped.\n'
+fi
+
+if ((failed != 0)); then
+    printf 'Validation failed.\n' >&2
+    exit 1
+fi
+
+printf 'Validation passed.\n'

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.example.invalid/os_name/desktop-pack-v1.json",
+  "title": "os_name desktop pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "version",
+    "type",
+    "compatibility",
+    "settings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)+$",
+      "maxLength": 128
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "type": {
+      "enum": [
+        "theme",
+        "widget",
+        "layout",
+        "snap-zones",
+        "keybinds",
+        "profile"
+      ]
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "desktopApi"
+      ],
+      "properties": {
+        "desktopApi": {
+          "type": "string",
+          "pattern": "^\\^?[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
+        },
+        "hyprland": {
+          "type": "string",
+          "maxLength": 40
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "pattern": "^(?!/)(?!.*\\.\\.)(?!.*\\\\).+$",
+        "maxLength": 240
+      }
+    },
+    "settings": {
+      "type": "object",
+      "maxProperties": 256
+    }
+  }
+}

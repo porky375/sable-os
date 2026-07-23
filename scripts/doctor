@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+required=(bash git jq makepkg pacman repo-add rustc cargo)
+optional=(archiso mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak)
+missing_required=0
+
+printf 'Project: %s %s (%s)\n' "$OS_PRETTY_NAME" "$OS_VERSION" "$OS_CHANNEL"
+printf 'Host: %s / %s\n' "$(uname -sr)" "$(uname -m)"
+
+for command_name in "${required[@]}"; do
+    if command -v "$command_name" >/dev/null 2>&1; then
+        printf 'required  %-24s ok\n' "$command_name"
+    else
+        printf 'required  %-24s MISSING\n' "$command_name"
+        missing_required=1
+    fi
+done
+
+for command_name in "${optional[@]}"; do
+    if command -v "$command_name" >/dev/null 2>&1; then
+        printf 'optional  %-24s ok\n' "$command_name"
+    else
+        printf 'optional  %-24s missing\n' "$command_name"
+    fi
+done
+
+if [[ -n "${OS_NAME_BUILD_ROOT:-}" ]]; then
+    build_root="$(require_build_root)"
+    available_kib="$(df -Pk "$build_root" | awk 'NR == 2 { print $4 }')"
+    printf 'Build root: %s (%s GiB available)\n' \
+        "$build_root" "$((available_kib / 1024 / 1024))"
+else
+    printf 'Build root: not configured\n'
+fi
+
+exit "$missing_required"

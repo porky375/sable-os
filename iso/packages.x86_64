@@ -1,0 +1,11 @@
+base
+linux-lts
+linux-firmware
+mkinitcpio
+os-name-base
+os-name-desktop
+os-name-security-core
+calamares
+networkmanager
+flatpak
+sudo

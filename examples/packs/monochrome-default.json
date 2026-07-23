@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "org.os_name.theme.monochrome",
+  "name": "Monochrome",
+  "description": "The accessible black, white, and neutral default theme.",
+  "version": "0.1.0",
+  "type": "theme",
+  "compatibility": {
+    "desktopApi": "^1.0"
+  },
+  "assets": [
+    "wallpapers/default.png"
+  ],
+  "settings": {
+    "appearance.colorMode": "dark",
+    "appearance.accent": "#f4f4f5",
+    "appearance.panelOpacity": 0.84,
+    "appearance.windowOpacity": 0.94,
+    "appearance.blurEnabled": true,
+    "appearance.blurStrength": 0.12,
+    "appearance.animationScale": 0.85
+  }
+}

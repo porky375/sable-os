@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+load_project_env
+
+require_command bsdtar
+require_command gpg
+require_command repo-add
+
+channel="${1:-}"
+repository="${2:-}"
+shift 2 || true
+
+case "$channel" in
+    testing|stable) ;;
+    *) printf 'invalid channel: %s\n' "$channel" >&2; exit 2 ;;
+esac
+case "$repository" in
+    os-core|os-desktop|os-extra) ;;
+    *) printf 'invalid repository: %s\n' "$repository" >&2; exit 2 ;;
+esac
+[[ "$#" -gt 0 ]] || {
+    printf 'at least one package file is required\n' >&2
+    exit 2
+}
+[[ -n "${OS_NAME_SIGNING_KEY:-}" ]] || {
+    printf 'OS_NAME_SIGNING_KEY is not set\n' >&2
+    exit 1
+}
+if [[ "$channel" == "stable" && "${OS_NAME_PROMOTE:-}" != "YES" ]]; then
+    printf 'stable publication requires OS_NAME_PROMOTE=YES\n' >&2
+    exit 1
+fi
+
+build_root="$(require_build_root)"
+destination="$build_root/repositories/$channel/$repository/$OS_ARCH"
+mkdir -p -- "$destination"
+
+published=()
+for package_path in "$@"; do
+    package_path="$(readlink -m -- "$package_path")"
+    [[ -f "$package_path" && "$package_path" == *.pkg.tar.* ]] || {
+        printf 'invalid package file: %s\n' "$package_path" >&2
+        exit 1
+    }
+    bsdtar -tf "$package_path" | grep -qx '.PKGINFO' || {
+        printf 'package lacks .PKGINFO: %s\n' "$package_path" >&2
+        exit 1
+    }
+    bsdtar -tf "$package_path" | grep -qx '.BUILDINFO' || {
+        printf 'package lacks .BUILDINFO: %s\n' "$package_path" >&2
+        exit 1
+    }
+
+    package_name="$(basename -- "$package_path")"
+    install -m 0644 -- "$package_path" "$destination/$package_name"
+    gpg --batch --yes --local-user "$OS_NAME_SIGNING_KEY" \
+        --detach-sign "$destination/$package_name"
+    published+=("$destination/$package_name")
+done
+
+database="$destination/$repository.db.tar.zst"
+repo-add --sign --key "$OS_NAME_SIGNING_KEY" "$database" "${published[@]}"
+printf 'Published %d package(s) to %s\n' "${#published[@]}" "$destination"

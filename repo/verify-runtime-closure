@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root="${1:-}"
+[[ -n "$root" ]] || {
+    printf 'usage: %s /path/to/rootfs\n' "$0" >&2
+    exit 2
+}
+root="$(readlink -m -- "$root")"
+[[ -d "$root/etc" ]] || {
+    printf 'not a root filesystem: %s\n' "$root" >&2
+    exit 1
+}
+
+pacman_conf="$root/etc/pacman.conf"
+[[ -f "$pacman_conf" ]] || {
+    printf 'missing pacman configuration\n' >&2
+    exit 1
+}
+
+forbidden='^\[(core|extra|multilib|cachyos|cachyos-v[0-9]+|chaotic-aur)\]$'
+if grep -Eq "$forbidden" "$pacman_conf"; then
+    printf 'parent-distribution repository found in %s\n' "$pacman_conf" >&2
+    exit 1
+fi
+
+if find "$root/etc/pacman.d" -type f -maxdepth 2 -print0 2>/dev/null |
+    xargs -0r grep -Eiq 'archlinux|cachyos|aur'; then
+    printf 'parent-distribution mirror configuration found\n' >&2
+    exit 1
+fi
+
+printf 'Runtime repository closure is independent.\n'

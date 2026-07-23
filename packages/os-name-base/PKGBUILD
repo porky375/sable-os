@@ -1,0 +1,40 @@
+pkgname=os-name-base
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Base system metapackage for os_name'
+arch=('any')
+url='https://github.com/porky375/os_name'
+license=('MIT')
+depends=(
+    apparmor
+    base
+    bluez
+    bluez-utils
+    btrfs-progs
+    ca-certificates
+    firewalld
+    flatpak
+    glibc
+    iwd
+    limine
+    linux-firmware
+    linux-lts
+    mkinitcpio
+    networkmanager
+    nftables
+    os-name-release
+    pipewire
+    pipewire-alsa
+    pipewire-pulse
+    polkit
+    snapper
+    sudo
+    systemd
+    systemd-resolvconf
+    wireplumber
+    zram-generator
+)
+
+package() {
+    install -d "$pkgdir/usr/share/os_name"
+}

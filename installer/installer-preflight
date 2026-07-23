@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+errors=()
+warnings=()
+
+[[ -d /sys/firmware/efi ]] || errors+=("os_name alpha requires UEFI")
+
+if lsblk -J -o NAME,FSTYPE,LABEL 2>/dev/null |
+    jq -e '.. | objects | select((.fstype // "" | ascii_downcase) == "bitlocker")' \
+        >/dev/null; then
+    warnings+=("BitLocker volume detected; only existing free space is supported")
+fi
+
+if findmnt -rn -t ntfs,ntfs3,fuseblk >/dev/null 2>&1; then
+    warnings+=("Mounted Windows filesystems must be unmounted before installation")
+fi
+
+jq -n \
+    --argjson ok "$([[ ${#errors[@]} -eq 0 ]] && printf true || printf false)" \
+    --argjson errors "$(printf '%s\n' "${errors[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" \
+    --argjson warnings "$(printf '%s\n' "${warnings[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')" \
+    '{ok: $ok, errors: $errors, warnings: $warnings}'
+
+[[ ${#errors[@]} -eq 0 ]]

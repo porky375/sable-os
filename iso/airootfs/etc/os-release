@@ -1,0 +1,7 @@
+NAME="os_name"
+PRETTY_NAME="os_name Live Alpha"
+ID=os_name
+ID_LIKE=linux
+BUILD_ID=live
+ANSI_COLOR="1;37"
+HOME_URL="https://github.com/porky375/os_name"

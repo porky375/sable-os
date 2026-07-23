@@ -1,0 +1,23 @@
+pkgname=os-name-gaming
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Gaming integration for os_name'
+arch=('x86_64')
+url='https://github.com/porky375/os_name'
+license=('MIT')
+depends=(
+    gamemode
+    gamescope
+    lib32-mesa
+    lib32-vulkan-icd-loader
+    mangohud
+    mesa
+    steam
+    vulkan-icd-loader
+    wine
+    winetricks
+)
+
+package() {
+    install -d "$pkgdir/usr/share/os_name"
+}

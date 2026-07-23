@@ -1,0 +1,3 @@
+hyprland_version = "0.55.4"
+hyprland_commit = "PIN_BEFORE_BUILD"
+plugin_api = 1

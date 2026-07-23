@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+snapshot_file="${1:-}"
+root_uuid="${2:-}"
+
+[[ -f "$snapshot_file" && -n "$root_uuid" ]] || {
+    printf 'usage: %s snapshot.json ROOT_UUID\n' "$0" >&2
+    exit 2
+}
+jq -e '.schemaVersion == 1 and .boot.rootSubvolume' "$snapshot_file" >/dev/null
+
+snapshot_id="$(jq -r '.snapshotId' "$snapshot_file")"
+kernel="$(jq -r '.boot.kernel' "$snapshot_file")"
+initramfs="$(jq -r '.boot.initramfs' "$snapshot_file")"
+subvolume="$(jq -r '.boot.rootSubvolume' "$snapshot_file")"
+
+for value in "$snapshot_id" "$kernel" "$initramfs" "$subvolume"; do
+    [[ "$value" != *$'\n'* && "$value" != *$'\r'* ]] || {
+        printf 'snapshot metadata contains a newline\n' >&2
+        exit 1
+    }
+done
+
+cat <<EOF
+//Recovery $snapshot_id
+    protocol: linux
+    path: boot():$kernel
+    module_path: boot():$initramfs
+    cmdline: root=UUID=$root_uuid rootflags=subvol=$subvolume ro systemd.unit=graphical.target
+EOF

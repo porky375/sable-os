@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+template="$script_dir/limine/limine.conf.in"
+
+root_uuid="${1:-}"
+recovery_file="${2:-}"
+windows_efi_uuid="${3:-}"
+
+[[ "$root_uuid" =~ ^[0-9A-Fa-f-]{8,}$ ]] || {
+    printf 'usage: %s ROOT_UUID [recovery-entries] [windows-efi-uuid]\n' "$0" >&2
+    exit 2
+}
+
+recovery_entries=""
+if [[ -n "$recovery_file" ]]; then
+    [[ -f "$recovery_file" ]] || {
+        printf 'recovery entry file does not exist: %s\n' "$recovery_file" >&2
+        exit 1
+    }
+    recovery_entries="$(<"$recovery_file")"
+fi
+
+windows_entry=""
+if [[ -n "$windows_efi_uuid" ]]; then
+    [[ "$windows_efi_uuid" =~ ^[0-9A-Fa-f-]{4,}$ ]] || {
+        printf 'invalid Windows EFI UUID\n' >&2
+        exit 1
+    }
+    windows_entry="/Windows
+    protocol: efi
+    path: uuid($windows_efi_uuid):/EFI/Microsoft/Boot/bootmgfw.efi"
+fi
+
+awk \
+    -v root_uuid="$root_uuid" \
+    -v recovery_entries="$recovery_entries" \
+    -v windows_entry="$windows_entry" '
+        {
+            gsub(/@ROOT_UUID@/, root_uuid)
+            if ($0 == "@RECOVERY_ENTRIES@") {
+                print recovery_entries
+            } else if ($0 == "@WINDOWS_ENTRY@") {
+                print windows_entry
+            } else {
+                print
+            }
+        }
+    ' "$template"

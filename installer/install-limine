@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[[ -d /sys/firmware/efi ]] || {
+    printf 'UEFI firmware is required\n' >&2
+    exit 1
+}
+[[ -d /boot/efi ]] || {
+    printf 'target EFI system partition is not mounted at /boot/efi\n' >&2
+    exit 1
+}
+[[ -x /usr/bin/limine ]] || {
+    printf 'Limine host utility is missing from the target\n' >&2
+    exit 1
+}
+
+printf 'Limine installation is intentionally blocked until the virtual-disk '
+printf 'integration test provides the target ESP UUID and atomic config path.\n'
+exit 1

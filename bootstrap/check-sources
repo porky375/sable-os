@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+manifest="$script_dir/sources.toml"
+
+if grep -q 'PIN_' "$manifest" || grep -q 'status = "UNPINNED"' "$manifest"; then
+    printf 'stage-0 sources are not pinned; bootstrap is blocked\n' >&2
+    exit 1
+fi
+
+printf 'Stage-0 source manifest is pinned.\n'

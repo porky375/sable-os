@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+load_project_env
+
+channel="${1:-$OS_CHANNEL}"
+case "$channel" in
+    testing|stable) ;;
+    *)
+        printf 'invalid channel: %s\n' "$channel" >&2
+        exit 2
+        ;;
+esac
+
+sed \
+    -e "s|@OS_REPO_BASE_URL@|$OS_REPO_BASE_URL|g" \
+    -e "s|@CHANNEL@|$channel|g" \
+    "$script_dir/pacman.conf.in"

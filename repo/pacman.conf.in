@@ -1,0 +1,19 @@
+[options]
+Architecture = auto
+CheckSpace
+Color
+ParallelDownloads = 5
+SigLevel = Required DatabaseOptional TrustedOnly
+LocalFileSigLevel = Required
+
+[os-core]
+SigLevel = Required TrustedOnly
+Server = @OS_REPO_BASE_URL@/@CHANNEL@/os-core/$arch
+
+[os-desktop]
+SigLevel = Required TrustedOnly
+Server = @OS_REPO_BASE_URL@/@CHANNEL@/os-desktop/$arch
+
+[os-extra]
+SigLevel = Required TrustedOnly
+Server = @OS_REPO_BASE_URL@/@CHANNEL@/os-extra/$arch

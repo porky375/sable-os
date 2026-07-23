@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "snapshotId": "20260723T120000Z-deadbeef",
+  "channel": "testing",
+  "architecture": "x86_64",
+  "publishedAt": "2026-07-23T12:00:00Z",
+  "repositories": [
+    "os-core",
+    "os-desktop",
+    "os-extra"
+  ],
+  "packages": [
+    {
+      "name": "os-name-release",
+      "version": "0.1.0-1",
+      "repository": "os-core",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "boot": {
+    "kernel": "/EFI/os_name/vmlinuz-linux-lts",
+    "initramfs": "/EFI/os_name/initramfs-linux-lts.img",
+    "rootSubvolume": "@"
+  }
+}

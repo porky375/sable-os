@@ -1,0 +1,15 @@
+pkgname=os-name-release
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Release identity and repository configuration for os_name'
+arch=('any')
+url='https://github.com/porky375/os_name'
+license=('MIT')
+backup=('etc/os-release' 'etc/pacman.conf')
+source=('os-release' 'pacman.conf')
+sha256sums=('SKIP' 'SKIP')
+
+package() {
+    install -Dm0644 "$srcdir/os-release" "$pkgdir/etc/os-release"
+    install -Dm0644 "$srcdir/pacman.conf" "$pkgdir/etc/pacman.conf"
+}

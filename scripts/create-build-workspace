@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+target="${1:-}"
+[[ -n "$target" ]] || {
+    printf 'usage: %s /path/to/build-root\n' "$0" >&2
+    exit 2
+}
+
+target="$(readlink -m -- "$target")"
+[[ "$target" != "/" && "$target" != "/home" && "$target" != "$HOME" ]] || {
+    printf 'refusing unsafe build root: %s\n' "$target" >&2
+    exit 1
+}
+
+mkdir -p -- "$target"/{cache,chroots,images,iso,logs,packages,repositories,tmp}
+[[ -w "$target" ]] || {
+    printf 'build root is not writable: %s\n' "$target" >&2
+    exit 1
+}
+
+available_kib="$(df -Pk "$target" | awk 'NR == 2 { print $4 }')"
+if (( available_kib < 100 * 1024 * 1024 )); then
+    printf 'warning: fewer than 100 GiB are available at %s\n' "$target" >&2
+fi
+
+printf 'Build workspace ready: %s\n' "$target"
+printf 'export OS_NAME_BUILD_ROOT=%q\n' "$target"
