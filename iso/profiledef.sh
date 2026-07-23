@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034
+# mkarchiso sources this file and consumes these declarations.
 
 iso_name="os_name"
 iso_label="OS_NAME_$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y%m)"
