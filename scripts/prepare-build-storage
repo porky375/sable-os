@@ -19,10 +19,10 @@ size_gib="${2:-160}"
     printf 'usage: %s /path/to/writable/data-volume [size-gib]\n' "$0" >&2
     exit 2
 }
-[[ "$size_gib" =~ ^[0-9]+$ ]] && ((size_gib >= 100 && size_gib <= 500)) || {
+if [[ ! "$size_gib" =~ ^[0-9]+$ ]] || ((size_gib < 100 || size_gib > 500)); then
     printf 'size must be an integer from 100 to 500 GiB\n' >&2
     exit 2
-}
+fi
 
 host_directory="$(readlink -m -- "$host_directory")"
 [[ -d "$host_directory" ]] || {
