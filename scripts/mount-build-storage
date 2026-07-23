@@ -30,17 +30,17 @@ image="$(readlink -m -- "$image")"
 loop_device="$(losetup -j "$image" | awk -F: 'NR == 1 { print $1 }')"
 if [[ -z "$loop_device" ]]; then
     loop_output="$(udisksctl loop-setup --file "$image")"
-    loop_device="$(sed -n 's/.* as \\(\\/dev\\/loop[0-9]\\+\\).*/\\1/p' <<<"$loop_output")"
+    loop_device="$(sed -nE 's#.*(/dev/loop[0-9]+).*#\1#p' <<<"$loop_output")"
 fi
 [[ "$loop_device" =~ ^/dev/loop[0-9]+$ ]] || {
     printf 'could not determine loop device for %s\n' "$image" >&2
     exit 1
 }
 
-mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1)"
+mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1 || true)"
 if [[ -z "$mount_point" ]]; then
     udisksctl mount -b "$loop_device" >/dev/null
-    mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1)"
+    mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1 || true)"
 fi
 [[ -n "$mount_point" && -d "$mount_point" && -w "$mount_point" ]] || {
     printf 'mounted build filesystem is not writable\n' >&2

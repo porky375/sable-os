@@ -29,9 +29,9 @@ Foundation milestone:
 - Root filesystem: Btrfs, approximately 14 GiB free at project creation.
 - Candidate build disk: `/dev/sda2`, label `ExtraStorage`, 660 GiB free.
 - Secondary candidate: `/dev/sdb2`, label `2TB`, 356 GiB free.
-- Blocker: both NTFS candidates mount read-only. Do not force either writable.
-  Windows must be fully shut down and the selected NTFS volume repaired before
-  it can host the contained Linux build image.
+- Build workspace: a 160 GiB ext4 image at
+  `/run/media/$USER/ExtraStorage/sable-build.ext4`, mounted by UDisks at
+  `/run/media/$USER/SABLE_BUILD`.
 - Missing host tools at project creation: `archiso`, QEMU, CMake, Calamares,
   and ShellCheck. `sudo` requires interactive authentication.
 
@@ -74,7 +74,7 @@ Commands that create package, ISO, or VM artifacts must set
 `SABLE_BUILD_ROOT` to a dedicated writable volume. Never default large builds
 to `/home`.
 
-After Windows has fully released a data volume:
+Prepare and mount the build image:
 
 ```bash
 ./scripts/prepare-build-storage /run/media/$USER/ExtraStorage 160
@@ -86,18 +86,16 @@ format, or otherwise modify a physical partition.
 
 ## Next Work
 
-1. Fully shut down Windows, repair the selected NTFS data volume if required,
-   then run the safe build-storage preparation commands above.
-2. Install host dependencies using `scripts/bootstrap-host` after reviewing its
+1. Install host dependencies using `scripts/bootstrap-host` after reviewing its
    package list and authenticating `sudo`.
-3. Complete the stage-0 package manifest and pin upstream source revisions.
-4. Build the first clean-chroot `sable-core` package set.
-5. Generate an unsigned developer repository, then establish offline release
+2. Complete the stage-0 package manifest and pin upstream source revisions.
+3. Build the first clean-chroot `sable-core` package set.
+4. Generate an unsigned developer repository, then establish offline release
    signing before any public promotion.
-6. Boot the root filesystem under QEMU/OVMF.
-7. Replace shell prototype data with live D-Bus events from `desktopd`.
-8. Integrate and test Limine snapshot entries.
-9. Build the Calamares live ISO and test only on disposable virtual disks.
+5. Boot the root filesystem under QEMU/OVMF.
+6. Replace shell prototype data with live D-Bus events from `desktopd`.
+7. Integrate and test Limine snapshot entries.
+8. Build the Calamares live ISO and test only on disposable virtual disks.
 
 ## Handoff Completion Rule
 
@@ -132,11 +130,12 @@ Validation completed on 2026-07-23:
   reordered, and listed a workspace.
 - Storage safety test: the preparation helper rejected the read-only 2 TB NTFS
   volume before creating any file.
+- Build storage lifecycle: prepared a 160 GiB ext4 image, initialized the
+  workspace, detached its loop device, and mounted it again successfully.
 
 Known blockers:
 
 - Host build dependencies need interactive sudo authentication.
-- Both large NTFS volumes are read-only and must not be forced writable.
 - Stage-0 source revisions and hashes are intentionally unpinned.
 - The ISO repository URL is intentionally invalid until hosting exists.
 - Physical Limine installation intentionally exits before writing anything.

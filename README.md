@@ -55,10 +55,9 @@ Create a build workspace on a writable volume with at least 100 GiB free:
 ./scripts/mount-build-storage /path/to/writable/data-volume/sable-build.ext4
 ```
 
-The current machine's 1 TB and 2 TB NTFS data volumes mount read-only. Do not
-force-mount them or clear Windows hibernation flags from Linux. Shut Windows
-down fully and repair the selected filesystem there before preparing the build
-workspace.
+The current development machine uses a 160 GiB image on `ExtraStorage`, mounted
+at `/run/media/$USER/SABLE_BUILD`. The helper refuses read-only host volumes
+rather than forcing Windows-managed filesystems writable.
 
 See [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) before continuing substantial
 implementation.

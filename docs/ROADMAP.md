@@ -5,7 +5,7 @@
 - [x] Establish repository structure and project identity.
 - [x] Record architecture, safety invariants, and AI handoff.
 - [x] Pass local repository validation.
-- [ ] Configure a writable external build root.
+- [x] Configure a writable external build root.
 - [x] Publish the initial public GitHub repository.
 
 ## M1: Independent Base
