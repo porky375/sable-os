@@ -32,8 +32,10 @@ Foundation milestone:
 - Build workspace: a 160 GiB ext4 image at
   `/run/media/$USER/ExtraStorage/sable-build.ext4`, mounted by UDisks at
   `/run/media/$USER/SABLE_BUILD`.
-- Missing host tools at project creation: `archiso`, QEMU, CMake, Calamares,
-  and ShellCheck. `sudo` requires interactive authentication.
+- Host build tools installed: archiso 88, QEMU 11.0.2, CMake 4.4.0,
+  ShellCheck 0.11.0, and EDK2 OVMF 202605.
+- Pre-update Snapper snapshot `133` is marked important; automatic Pacman
+  snapshots `134` and `135` bracket the successful host upgrade.
 
 ## Architecture Decisions
 

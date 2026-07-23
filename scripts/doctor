@@ -8,7 +8,7 @@ source "$script_dir/lib/common.sh"
 load_project_env
 
 required=(bash git jq makepkg pacman repo-add rustc cargo)
-optional=(archiso mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak)
+optional=(mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak)
 missing_required=0
 
 printf 'Project: %s %s (%s)\n' "$SABLE_PRETTY_NAME" "$SABLE_VERSION" "$SABLE_CHANNEL"
