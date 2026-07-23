@@ -11,7 +11,7 @@ system.
 - GRUB fallback: `Boot0000`, `/EFI/cachyos/grubx64.efi`.
 - Boot order: Limine first, GRUB second.
 - Limine config: `/boot/efi/limine.conf`.
-- Default entry: Windows, with a three-second menu.
+- Default entry: CachyOS, with a three-second menu.
 - Linux artifacts: `/boot/efi/EFI/limine/kernels`.
 
 The menu also provides current and LTS CachyOS entries plus direct GRUB
