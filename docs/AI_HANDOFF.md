@@ -112,6 +112,8 @@ Validation completed on 2026-07-23:
   chainload entries.
 - Installer preflight: passed UEFI check and warned about the mounted Windows
   filesystem.
+- GitHub Actions PR validation: passed formatting, Clippy, tests, ShellCheck,
+  repository checks, and checkout post-processing.
 
 Known blockers:
 
@@ -120,5 +122,3 @@ Known blockers:
 - Stage-0 source revisions and hashes are intentionally unpinned.
 - The ISO repository URL is intentionally invalid until hosting exists.
 - Physical Limine installation intentionally exits before writing anything.
-- GitHub validation for the initial `main` push was still running when this
-  handoff was updated.
