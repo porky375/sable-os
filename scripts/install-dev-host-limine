@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+esp="${SABLE_HOST_ESP:-/boot/efi}"
+settings_file="/etc/default/sable-host-limine"
+sync_script="/usr/local/bin/sable-host-limine-sync"
+hook_file="/etc/pacman.d/hooks/95-sable-host-limine-sync.hook"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup_root="/var/lib/sable-host-boot/backups/$stamp"
+esp_backup="$esp/EFI/limine-backup-$stamp"
+
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || {
+    printf 'install-dev-host-limine must run as root\n' >&2
+    exit 1
+}
+[[ -d /sys/firmware/efi ]] || {
+    printf 'UEFI firmware is required\n' >&2
+    exit 1
+}
+mountpoint -q "$esp" || {
+    printf 'EFI system partition is not mounted: %s\n' "$esp" >&2
+    exit 1
+}
+[[ "$(findmnt -nro FSTYPE "$esp")" == "vfat" ]] || {
+    printf 'EFI system partition is not FAT32: %s\n' "$esp" >&2
+    exit 1
+}
+[[ -s "$esp/EFI/cachyos/grubx64.efi" ]] || {
+    printf 'GRUB fallback is missing from the EFI system partition\n' >&2
+    exit 1
+}
+
+secure_boot_byte="$(od -An -j4 -N1 -t u1 /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null |
+    tr -d '[:space:]')"
+[[ -z "$secure_boot_byte" || "$secure_boot_byte" == "0" ]] || {
+    printf 'Secure Boot is enabled; refusing to install an unsigned Limine image\n' >&2
+    exit 1
+}
+
+install -d -m 0700 "$backup_root" "$esp_backup"
+efibootmgr -v >"$backup_root/efibootmgr-before.txt"
+cp "$backup_root/efibootmgr-before.txt" "$esp_backup/efibootmgr-before.txt"
+for path in \
+    "$esp/limine.conf" \
+    "$esp/EFI/limine/BOOTX64.EFI" \
+    "$esp/EFI/limine/limine.conf" \
+    "$settings_file" \
+    "$sync_script" \
+    "$hook_file"
+do
+    if [[ -f "$path" ]]; then
+        backup_name="$(tr '/' '_' <<<"${path#/}")"
+        cp -a "$path" "$backup_root/$backup_name"
+    fi
+done
+
+default_entry="CachyOS"
+if [[ -r "$esp/EFI/limine/limine.conf" ]] &&
+    grep -Eq '^default_entry:[[:space:]]*Windows[[:space:]]*$' \
+        "$esp/EFI/limine/limine.conf"; then
+    default_entry="Windows"
+fi
+
+settings_tmp="$(mktemp)"
+hook_tmp="$(mktemp)"
+trap 'rm -f -- "$settings_tmp" "$hook_tmp"' EXIT
+cat >"$settings_tmp" <<EOF
+limine_default_entry=$default_entry
+limine_timeout=3
+EOF
+cat >"$hook_tmp" <<EOF
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = amd-ucode
+Target = limine
+Target = linux-cachyos
+Target = linux-cachyos-lts
+
+[Action]
+Description = Synchronizing CachyOS boot artifacts for Limine
+When = PostTransaction
+Exec = $sync_script
+EOF
+
+install -m 0755 "$script_dir/sync-dev-host-limine" "$sync_script"
+install -m 0644 "$settings_tmp" "$settings_file"
+install -d -m 0755 "$(dirname "$hook_file")"
+install -m 0644 "$hook_tmp" "$hook_file"
+"$sync_script"
+rm -f -- "$esp/EFI/limine/limine.conf"
+
+limine_entry_ids() {
+    efibootmgr -v |
+        awk 'index($0, "\\EFI\\limine\\BOOTX64.EFI") {
+            print substr($1, 5, 4)
+        }'
+}
+
+mapfile -t limine_ids < <(limine_entry_ids)
+if ((${#limine_ids[@]} == 0)); then
+    esp_source="$(findmnt -nro SOURCE "$esp")"
+    parent_name="$(lsblk -ndo PKNAME "$esp_source")"
+    partition_number="$(lsblk -ndo PARTN "$esp_source")"
+    [[ -n "$parent_name" && "$partition_number" =~ ^[0-9]+$ ]] || {
+        printf 'could not resolve EFI disk and partition\n' >&2
+        exit 1
+    }
+    efibootmgr -c -d "/dev/$parent_name" -p "$partition_number" \
+        -L "Limine" -l '\EFI\limine\BOOTX64.EFI'
+    mapfile -t limine_ids < <(limine_entry_ids)
+fi
+limine_id="${limine_ids[-1]:-}"
+[[ "$limine_id" =~ ^[0-9A-Fa-f]{4}$ ]] || {
+    printf 'Limine UEFI entry could not be created or discovered\n' >&2
+    exit 1
+}
+efibootmgr -b "$limine_id" -L "Limine"
+for duplicate_id in "${limine_ids[@]}"; do
+    [[ "${duplicate_id^^}" == "${limine_id^^}" ]] && continue
+    efibootmgr -b "$duplicate_id" -B
+done
+
+grub_id="$(efibootmgr -v |
+    awk 'index($0, "\\EFI\\cachyos\\grubx64.EFI") {
+        print substr($1, 5, 4)
+        exit
+    }')"
+current_order="$(efibootmgr | awk -F': ' '/^BootOrder:/ {print $2; exit}')"
+new_order="$limine_id"
+if [[ "$grub_id" =~ ^[0-9A-Fa-f]{4}$ && "${grub_id^^}" != "${limine_id^^}" ]]; then
+    new_order+=",$grub_id"
+fi
+while IFS= read -r entry; do
+    [[ "$entry" =~ ^[0-9A-Fa-f]{4}$ ]] || continue
+    [[ "${entry^^}" == "${limine_id^^}" ]] && continue
+    [[ -n "$grub_id" && "${entry^^}" == "${grub_id^^}" ]] && continue
+    new_order+=",$entry"
+done < <(tr ',' '\n' <<<"$current_order")
+
+efibootmgr -o "$new_order"
+efibootmgr -n "$limine_id"
+efibootmgr -v >"$backup_root/efibootmgr-after.txt"
+sync -f "$esp"
+
+printf 'Limine is first in UEFI BootOrder; GRUB remains second.\n'
+printf 'Default Limine entry: %s\n' "$default_entry"
+printf 'Recovery backup: %s\n' "$backup_root"

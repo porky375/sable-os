@@ -36,6 +36,10 @@ Foundation milestone:
   ShellCheck 0.11.0, and EDK2 OVMF 202605.
 - Pre-update Snapper snapshot `133` is marked important; automatic Pacman
   snapshots `134` and `135` bracket the successful host upgrade.
+- Development-host boot: Limine `Boot0006` is first, GRUB `Boot0000` remains
+  second, and `BootNext` targets Limine. See `docs/DEV_HOST_BOOT.md`.
+- Important Snapper snapshot `136` and a full ESP archive were created before
+  the Limine migration.
 
 ## Architecture Decisions
 
@@ -134,6 +138,10 @@ Validation completed on 2026-07-23:
   volume before creating any file.
 - Build storage lifecycle: prepared a 160 GiB ext4 image, initialized the
   workspace, detached its loop device, and mounted it again successfully.
+- Limine host test: a disposable FAT32 ESP booted the current CachyOS kernel,
+  AMD microcode, and initramfs under QEMU/OVMF and reached early userspace.
+- Physical ESP integrity: installed kernels and initramfs files byte-match
+  `/boot`; firmware order and Windows/GRUB chainload targets were verified.
 
 Known blockers:
 

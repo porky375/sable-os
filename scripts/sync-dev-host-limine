@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+esp="${SABLE_HOST_ESP:-/boot/efi}"
+settings_file="${SABLE_HOST_LIMINE_SETTINGS:-/etc/default/sable-host-limine}"
+efi_dir="$esp/EFI/limine"
+kernel_dir="$efi_dir/kernels"
+config_file="$esp/limine.conf"
+
+[[ "${EUID:-$(id -u)}" -eq 0 ]] || {
+    printf 'sync-dev-host-limine must run as root\n' >&2
+    exit 1
+}
+
+for command_name in b2sum findmnt install mktemp; do
+    command -v "$command_name" >/dev/null 2>&1 || {
+        printf 'required command is missing: %s\n' "$command_name" >&2
+        exit 1
+    }
+done
+
+mountpoint -q "$esp" || {
+    printf 'EFI system partition is not mounted: %s\n' "$esp" >&2
+    exit 1
+}
+[[ "$(findmnt -nro FSTYPE "$esp")" == "vfat" ]] || {
+    printf 'EFI system partition is not FAT32: %s\n' "$esp" >&2
+    exit 1
+}
+[[ ",$(findmnt -nro OPTIONS "$esp")," != *,ro,* ]] || {
+    printf 'EFI system partition is read-only: %s\n' "$esp" >&2
+    exit 1
+}
+
+limine_default_entry="CachyOS"
+limine_timeout="3"
+if [[ -r "$settings_file" ]]; then
+    # shellcheck source=/dev/null
+    source "$settings_file"
+fi
+case "$limine_default_entry" in
+    CachyOS | "CachyOS LTS" | Windows) ;;
+    *)
+        printf 'invalid Limine default entry: %s\n' "$limine_default_entry" >&2
+        exit 1
+        ;;
+esac
+[[ "$limine_timeout" =~ ^[0-9]+$ ]] || {
+    printf 'Limine timeout must be a non-negative integer\n' >&2
+    exit 1
+}
+
+declare -A sources=(
+    [amd-ucode.img]="/boot/amd-ucode.img"
+    [initramfs-linux-cachyos.img]="/boot/initramfs-linux-cachyos.img"
+    [initramfs-linux-cachyos-lts.img]="/boot/initramfs-linux-cachyos-lts.img"
+    [vmlinuz-linux-cachyos]="/boot/vmlinuz-linux-cachyos"
+    [vmlinuz-linux-cachyos-lts]="/boot/vmlinuz-linux-cachyos-lts"
+)
+for source in "${sources[@]}" /usr/share/limine/BOOTX64.EFI; do
+    [[ -s "$source" && -r "$source" ]] || {
+        printf 'required boot artifact is missing or unreadable: %s\n' "$source" >&2
+        exit 1
+    }
+done
+
+kernel_cmdline="$(sed -E \
+    's/(^| )BOOT_IMAGE=[^ ]+//g; s/[[:space:]]+/ /g; s/^ //; s/ $//' \
+    /proc/cmdline)"
+[[ "$kernel_cmdline" == *"root=UUID="* && "$kernel_cmdline" == *"rootflags=subvol=@"* ]] || {
+    printf 'current kernel command line does not identify the expected Btrfs root\n' >&2
+    exit 1
+}
+
+staging="$(mktemp -d /var/tmp/sable-limine-sync.XXXXXX)"
+cleanup() {
+    rm -rf -- "$staging"
+    rm -f -- "$efi_dir/BOOTX64.EFI.new" "$config_file.new"
+    for name in "${!sources[@]}"; do
+        rm -f -- "$kernel_dir/$name.new"
+    done
+}
+trap cleanup EXIT
+
+install -m 0644 /usr/share/limine/BOOTX64.EFI "$staging/BOOTX64.EFI"
+for name in "${!sources[@]}"; do
+    install -m 0644 "${sources[$name]}" "$staging/$name"
+done
+
+hash_of() {
+    b2sum "$staging/$1" | awk '{print $1}'
+}
+
+current_kernel_hash="$(hash_of vmlinuz-linux-cachyos)"
+current_initramfs_hash="$(hash_of initramfs-linux-cachyos.img)"
+lts_kernel_hash="$(hash_of vmlinuz-linux-cachyos-lts)"
+lts_initramfs_hash="$(hash_of initramfs-linux-cachyos-lts.img)"
+microcode_hash="$(hash_of amd-ucode.img)"
+
+cat >"$staging/limine.conf" <<EOF
+timeout: $limine_timeout
+quiet: no
+default_entry: $limine_default_entry
+remember_last_entry: no
+hash_mismatch_panic: yes
+interface_branding: Sable development host
+interface_branding_colour: ffffff
+interface_help_colour: a3a3a3
+interface_help_colour_bright: ffffff
+term_background: e6101010
+term_foreground: f5f5f5
+term_margin: 18
+editor_enabled: yes
+
+/Windows
+    protocol: efi
+    path: guid(95439acb-1c77-4074-8eb2-8bbb4600ed8a):/EFI/Microsoft/Boot/bootmgfw.efi
+
+/CachyOS
+    protocol: linux
+    path: boot():/EFI/limine/kernels/vmlinuz-linux-cachyos#$current_kernel_hash
+    module_path: boot():/EFI/limine/kernels/amd-ucode.img#$microcode_hash
+    module_path: boot():/EFI/limine/kernels/initramfs-linux-cachyos.img#$current_initramfs_hash
+    cmdline: $kernel_cmdline
+
+/CachyOS LTS
+    protocol: linux
+    path: boot():/EFI/limine/kernels/vmlinuz-linux-cachyos-lts#$lts_kernel_hash
+    module_path: boot():/EFI/limine/kernels/amd-ucode.img#$microcode_hash
+    module_path: boot():/EFI/limine/kernels/initramfs-linux-cachyos-lts.img#$lts_initramfs_hash
+    cmdline: $kernel_cmdline
+
+/GRUB fallback
+    protocol: efi
+    path: boot():/EFI/cachyos/grubx64.efi
+EOF
+
+install -d -m 0755 "$efi_dir" "$kernel_dir"
+install -m 0644 "$staging/BOOTX64.EFI" "$efi_dir/BOOTX64.EFI.new"
+mv -f "$efi_dir/BOOTX64.EFI.new" "$efi_dir/BOOTX64.EFI"
+for name in "${!sources[@]}"; do
+    install -m 0644 "$staging/$name" "$kernel_dir/$name.new"
+    mv -f "$kernel_dir/$name.new" "$kernel_dir/$name"
+done
+install -m 0644 "$staging/limine.conf" "$config_file.new"
+mv -f "$config_file.new" "$config_file"
+sync -f "$esp"
+
+cmp -s /usr/share/limine/BOOTX64.EFI "$efi_dir/BOOTX64.EFI" || {
+    printf 'installed Limine EFI executable failed verification\n' >&2
+    exit 1
+}
+for name in "${!sources[@]}"; do
+    cmp -s "${sources[$name]}" "$kernel_dir/$name" || {
+        printf 'installed boot artifact failed verification: %s\n' "$name" >&2
+        exit 1
+    }
+done
+
+printf 'Limine boot artifacts synchronized at %s\n' "$efi_dir"

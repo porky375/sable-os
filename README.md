@@ -62,6 +62,9 @@ rather than forcing Windows-managed filesystems writable.
 See [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) before continuing substantial
 implementation.
 
+Development-host Limine maintenance and recovery are documented in
+[docs/DEV_HOST_BOOT.md](docs/DEV_HOST_BOOT.md).
+
 ## Licensing
 
 Project-authored code is licensed under MIT. Package recipes and redistributed
