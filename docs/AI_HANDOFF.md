@@ -23,6 +23,9 @@ Foundation milestone:
 - Host: CachyOS, x86-64, Hyprland/Wayland.
 - CPU/GPU target available: AMD desktop with Radeon RX 7600 class graphics.
 - Source checkout: `~/Projects/os_name`.
+- Public repository: `https://github.com/porky375/os_name`.
+- Default branch: `main`; implementation changes use `agent/*` branches and
+  draft pull requests.
 - Root filesystem: Btrfs, approximately 14 GiB free at project creation.
 - Candidate build disk: `/dev/sda2`, label `ExtraStorage`, 660 GiB free.
 - Blocker: `/dev/sda2` mounted read-only at
@@ -117,3 +120,5 @@ Known blockers:
 - Stage-0 source revisions and hashes are intentionally unpinned.
 - The ISO repository URL is intentionally invalid until hosting exists.
 - Physical Limine installation intentionally exits before writing anything.
+- GitHub validation for the initial `main` push was still running when this
+  handoff was updated.

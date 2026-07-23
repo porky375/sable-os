@@ -6,7 +6,7 @@
 - [x] Record architecture, safety invariants, and AI handoff.
 - [x] Pass local repository validation.
 - [ ] Configure a writable external build root.
-- [ ] Publish the initial public GitHub repository.
+- [x] Publish the initial public GitHub repository.
 
 ## M1: Independent Base
 
