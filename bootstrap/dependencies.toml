@@ -409,7 +409,7 @@ name = "meson"
 phase = "chroot-base"
 role = "build-system"
 upstream = "https://mesonbuild.com/"
-pinned = false
+pinned = true
 needed_by = ["systemd", "pacman", "util-linux"]
 note = "Python package; also needs python-jinja for systemd code generation."
 
@@ -418,7 +418,7 @@ name = "ninja"
 phase = "chroot-base"
 role = "build-system"
 upstream = "https://ninja-build.org/"
-pinned = false
+pinned = true
 needed_by = ["systemd", "pacman"]
 
 # --- chroot-base: kernel build extras ---
@@ -428,7 +428,7 @@ name = "bc"
 phase = "chroot-base"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/bc/"
-pinned = false
+pinned = true
 needed_by = ["linux-lts"]
 
 [[component]]
@@ -436,7 +436,7 @@ name = "cpio"
 phase = "chroot-base"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/cpio/"
-pinned = false
+pinned = true
 needed_by = ["linux-lts"]
 note = "Initramfs packaging."
 
@@ -445,7 +445,7 @@ name = "elfutils"
 phase = "chroot-base"
 role = "system-lib"
 upstream = "https://sourceware.org/elfutils/"
-pinned = false
+pinned = true
 needed_by = ["linux-lts"]
 note = "libelf for objtool / BTF generation."
 
@@ -456,7 +456,7 @@ name = "util-linux"
 phase = "chroot-base"
 role = "system-lib"
 upstream = "https://github.com/util-linux/util-linux"
-pinned = false
+pinned = true
 needed_by = ["systemd"]
 note = "libmount / libblkid / libuuid; systemd hard-depends on libmount."
 
@@ -465,7 +465,7 @@ name = "kmod"
 phase = "chroot-base"
 role = "system-lib"
 upstream = "https://github.com/kmod-project/kmod"
-pinned = false
+pinned = true
 needed_by = ["linux-lts", "systemd"]
 note = "depmod at kernel install; libkmod for systemd."
 
@@ -474,7 +474,7 @@ name = "libcap"
 phase = "chroot-base"
 role = "system-lib"
 upstream = "https://sites.google.com/site/fullycapable/"
-pinned = false
+pinned = true
 needed_by = ["systemd"]
 
 [[component]]
@@ -482,7 +482,7 @@ name = "libxcrypt"
 phase = "chroot-base"
 role = "system-lib"
 upstream = "https://github.com/besser82/libxcrypt"
-pinned = false
+pinned = true
 needed_by = ["systemd"]
 note = "libcrypt, split out of glibc."
 
@@ -496,7 +496,7 @@ name = "openssl"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://www.openssl.org/"
-pinned = false
+pinned = true
 frontier = true
 needed_by = ["linux-lts", "curl", "libarchive"]
 
@@ -505,7 +505,7 @@ name = "libarchive"
 phase = "chroot-base"
 role = "system-lib"
 upstream = "https://www.libarchive.org/"
-pinned = false
+pinned = true
 needed_by = ["pacman"]
 note = "Requires zlib, xz, bzip2, zstd, openssl."
 
@@ -514,7 +514,7 @@ name = "nghttp2"
 phase = "chroot-base"
 role = "tls"
 upstream = "https://nghttp2.org/"
-pinned = false
+pinned = true
 needed_by = ["curl"]
 
 [[component]]
@@ -522,7 +522,7 @@ name = "curl"
 phase = "chroot-base"
 role = "tls"
 upstream = "https://curl.se/"
-pinned = false
+pinned = true
 frontier = true
 needed_by = ["pacman"]
 note = "libcurl; requires openssl, zlib, nghttp2."
@@ -532,7 +532,7 @@ name = "libgpg-error"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/software/libgpg-error/"
-pinned = false
+pinned = true
 needed_by = ["libgcrypt", "libassuan", "gpgme", "gnupg"]
 
 [[component]]
@@ -540,7 +540,7 @@ name = "libassuan"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/software/libassuan/"
-pinned = false
+pinned = true
 needed_by = ["gpgme", "gnupg"]
 
 [[component]]
@@ -548,7 +548,7 @@ name = "libgcrypt"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/software/libgcrypt/"
-pinned = false
+pinned = true
 needed_by = ["gnupg"]
 
 [[component]]
@@ -556,7 +556,7 @@ name = "libksba"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/software/libksba/"
-pinned = false
+pinned = true
 needed_by = ["gnupg"]
 
 [[component]]
@@ -564,7 +564,7 @@ name = "npth"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/software/npth/"
-pinned = false
+pinned = true
 needed_by = ["gnupg"]
 
 [[component]]
@@ -572,7 +572,7 @@ name = "gnupg"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/"
-pinned = false
+pinned = true
 frontier = true
 needed_by = ["pacman"]
 note = "Runtime gpg for package signature verification."
@@ -582,7 +582,7 @@ name = "gpgme"
 phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/software/gpgme/"
-pinned = false
+pinned = true
 needed_by = ["pacman"]
 note = "Requires libgpg-error, libassuan, gnupg."
 

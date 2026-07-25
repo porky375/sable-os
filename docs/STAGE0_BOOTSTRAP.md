@@ -87,13 +87,34 @@ URL; their SHA-256 was computed from a byte-identical mirror
 (`mirrors.kernel.org`) when `ftp.gnu.org` rate-limited the bulk fetch — the
 digest identifies the exact bytes regardless of which mirror serves them.
 
-Manifest state: **40 pinned, 20 unpinned, 3 frontier** (`bootstrap/check-sources`
-and `bootstrap/check-dependencies` both pass). The only remaining unpinned
-components are the `chroot-base` phase (build systems, kernel-build extras,
-system libraries, and the crypto/TLS frontier: openssl, curl, and the gnupg
-stack). Signature verification (acceptance criterion 2) is the next layer to add
-to the fetch/verify tooling; today's pins rest on SHA-256 over TLS-authenticated
-upstreams.
+The **chroot-base phase is now pinned as well** — build systems (meson, ninja),
+kernel-build extras (bc, cpio, elfutils), system libraries (util-linux, kmod,
+libcap, libxcrypt), and the full crypto/TLS stack (openssl, libarchive, nghttp2,
+curl, and the gnupg stack: libgpg-error, libassuan, libgcrypt, libksba, npth,
+gnupg, gpgme). bc/cpio record the canonical `ftp.gnu.org` URL with the
+mirror-computed digest; the gnupg stack comes from `gnupg.org`, openssl from
+`openssl.org`, curl from `curl.se`.
+
+Manifest state: **60 pinned, 0 unpinned, 3 frontier** (`bootstrap/check-sources`
+and `bootstrap/check-dependencies` both pass). **Every enumerated stage-0
+component is now pinned** with an immutable revision and SHA-256 — acceptance
+criterion 1 is met for the current enumeration.
+
+Two things still stand between this and a `COMPLETE`/independent manifest:
+
+1. **Frontier subtree review.** `openssl`, `curl`, and `gnupg` remain flagged
+   `frontier = true`. Their *listed* dependencies are all pinned now, but each
+   subtree must be re-audited for leaves not yet enumerated (e.g. curl's
+   optional psl/brotli/zstd, gnupg's optional ntbtls/sqlite) before the flag can
+   be cleared. Clearing all three is required for `status = "COMPLETE"`.
+2. **Signature verification** (acceptance criterion 2) is still the next layer to
+   add to the fetch/verify tooling; today's pins rest on SHA-256 over
+   TLS-authenticated upstreams, several cross-checked against well-known
+   published digests.
+
+Independence (`independence = true`) additionally requires a phase-3 chroot build
+with zero seed packages and a passing `repo/verify-runtime-closure` — the build,
+not the manifest, is what remains after that.
 
 ### Expansion frontier
 

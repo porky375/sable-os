@@ -252,3 +252,127 @@ name = "bzip2"
 source = "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz"
 revision = "bzip2-1.0.8"
 sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
+
+# --- chroot-base phase: build systems, kernel extras, system libs ---
+# Versions match the host seed's current releases. bc/cpio record the canonical
+# ftp.gnu.org URL (SHA-256 computed from a byte-identical kernel.org mirror).
+
+[[component]]
+name = "meson"
+source = "https://github.com/mesonbuild/meson/releases/download/1.11.2/meson-1.11.2.tar.gz"
+revision = "1.11.2"
+sha256 = "698feae069cef3ecd4d7aaf281d7df359bdfcf555a9a1564383d3b913fa8a736"
+
+[[component]]
+name = "ninja"
+source = "https://github.com/ninja-build/ninja/archive/refs/tags/v1.13.2.tar.gz"
+revision = "v1.13.2"
+sha256 = "974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17"
+
+[[component]]
+name = "bc"
+source = "https://ftp.gnu.org/gnu/bc/bc-1.08.2.tar.gz"
+revision = "bc-1.08.2"
+sha256 = "ae470fec429775653e042015edc928d07c8c3b2fc59765172a330d3d87785f86"
+
+[[component]]
+name = "cpio"
+source = "https://ftp.gnu.org/gnu/cpio/cpio-2.15.tar.gz"
+revision = "cpio-2.15"
+sha256 = "efa50ef983137eefc0a02fdb51509d624b5e3295c980aa127ceee4183455499e"
+
+[[component]]
+name = "elfutils"
+source = "https://sourceware.org/elfutils/ftp/0.195/elfutils-0.195.tar.bz2"
+revision = "elfutils-0.195"
+sha256 = "37629fdf7f1f3dc2818e138fca2b8094177d6c2d0f701d3bb650a561218dc026"
+
+[[component]]
+name = "util-linux"
+source = "https://mirrors.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.2.tar.xz"
+revision = "util-linux-2.42.2"
+sha256 = "03a05d3adf9602ef128f2da05b84b3205ce60c351e5737c0370f74000679ce8a"
+
+[[component]]
+name = "kmod"
+source = "https://mirrors.kernel.org/pub/linux/utils/kernel/kmod/kmod-34.2.tar.xz"
+revision = "kmod-34.2"
+sha256 = "5a5d5073070cc7e0c7a7a3c6ec2a0e1780850c8b47b3e3892226b93ffcb9cb54"
+
+[[component]]
+name = "libcap"
+source = "https://mirrors.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.xz"
+revision = "libcap-2.78"
+sha256 = "0d621e562fd932ccf67b9660fb018e468a683d7b827541df27813228c996bb11"
+
+[[component]]
+name = "libxcrypt"
+source = "https://github.com/besser82/libxcrypt/releases/download/v4.5.2/libxcrypt-4.5.2.tar.xz"
+revision = "v4.5.2"
+sha256 = "71513a31c01a428bccd5367a32fd95f115d6dac50fb5b60c779d5c7942aec071"
+
+[[component]]
+name = "openssl"
+source = "https://www.openssl.org/source/openssl-3.6.3.tar.gz"
+revision = "openssl-3.6.3"
+sha256 = "243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1"
+
+[[component]]
+name = "libarchive"
+source = "https://github.com/libarchive/libarchive/releases/download/v3.8.8/libarchive-3.8.8.tar.xz"
+revision = "v3.8.8"
+sha256 = "3873a88801da067d0528a989af06877710529d50ee8fe6f3970cbb4302efb918"
+
+[[component]]
+name = "nghttp2"
+source = "https://github.com/nghttp2/nghttp2/releases/download/v1.69.0/nghttp2-1.69.0.tar.xz"
+revision = "v1.69.0"
+sha256 = "1fb324b6ec2c56f6bde0658f4139ffd8209fa9e77ce98fd7a5f63af8d0e508ad"
+
+[[component]]
+name = "curl"
+source = "https://curl.se/download/curl-8.21.0.tar.xz"
+revision = "curl-8.21.0"
+sha256 = "aa1b66a70eace83dc624508745646c08ae561de512ab403adffb93ac87fc72e6"
+
+[[component]]
+name = "libgpg-error"
+source = "https://gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.61.tar.bz2"
+revision = "libgpg-error-1.61"
+sha256 = "7a85413f2bc354f4f8aa832b718af122e48965e9e0eb9012ee659c13c6385c93"
+
+[[component]]
+name = "libassuan"
+source = "https://gnupg.org/ftp/gcrypt/libassuan/libassuan-3.0.0.tar.bz2"
+revision = "libassuan-3.0.0"
+sha256 = "0b160cbb898b852c6c04314b9a63e90ca87501305ad72a58a010f808665bbaf6"
+
+[[component]]
+name = "libgcrypt"
+source = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.2.tar.bz2"
+revision = "libgcrypt-1.12.2"
+sha256 = "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e"
+
+[[component]]
+name = "libksba"
+source = "https://gnupg.org/ftp/gcrypt/libksba/libksba-1.8.0.tar.bz2"
+revision = "libksba-1.8.0"
+sha256 = "296b9db9095749f2aa104202d7ab7fd09ad10710e00780a709c9754b1a1d9292"
+
+[[component]]
+name = "npth"
+source = "https://gnupg.org/ftp/gcrypt/npth/npth-1.8.tar.bz2"
+revision = "npth-1.8"
+sha256 = "8bd24b4f23a3065d6e5b26e98aba9ce783ea4fd781069c1b35d149694e90ca3e"
+
+[[component]]
+name = "gnupg"
+source = "https://gnupg.org/ftp/gcrypt/gnupg/gnupg-2.4.9.tar.bz2"
+revision = "gnupg-2.4.9"
+sha256 = "dd17ab2e9a04fd79d39d853f599cbc852062ddb9ab52a4ddeb4176fd8b302964"
+
+[[component]]
+name = "gpgme"
+source = "https://gnupg.org/ftp/gcrypt/gpgme/gpgme-2.1.2.tar.bz2"
+revision = "gpgme-2.1.2"
+sha256 = "0687a95b299871c4141f507c0f740de6b429c9ac067d0fa4e062e3264df5fb77"
