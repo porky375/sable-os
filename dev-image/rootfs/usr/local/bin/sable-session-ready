@@ -80,5 +80,20 @@ if ((failed != 0)); then
     exit 1
 fi
 
+# Non-fatal internet reachability probe (DNS + HTTPS), retried for DHCP to settle.
+net_ok=0
+for _ in {1..15}; do
+    if curl -sf -m 4 -o /dev/null https://archlinux.org 2>/dev/null; then
+        net_ok=1
+        break
+    fi
+    sleep 1
+done
+if ((net_ok == 1)); then
+    printf 'SABLE_NET_OK\n' >/dev/ttyS0 2>/dev/null || true
+else
+    printf 'SABLE_NET_OFFLINE\n' >/dev/ttyS0 2>/dev/null || true
+fi
+
 touch /run/user/"$(id -u)"/sable-session-ready
 printf 'SABLE_FUNCTIONAL_READY\n' >/dev/ttyS0 2>/dev/null || true

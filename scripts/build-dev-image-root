@@ -243,6 +243,10 @@ rsync -aHAX --chown=root:root \
 install -d -o 1000 -g 1000 "$mount_root/home/sable/.local/state/sable"
 printf 'sable:sable\n' | arch-chroot "$mount_root" chpasswd
 arch-chroot "$mount_root" systemctl enable NetworkManager.service
+arch-chroot "$mount_root" systemctl enable systemd-resolved.service
+# NetworkManager feeds DHCP DNS to systemd-resolved; point libc name resolution
+# at the resolved stub so DNS (web, downloads, pacman) actually works.
+ln -sf /run/systemd/resolve/stub-resolv.conf "$mount_root/etc/resolv.conf"
 arch-chroot "$mount_root" systemctl enable bluetooth.service
 arch-chroot "$mount_root" systemctl enable getty@tty1.service
 arch-chroot "$mount_root" systemctl set-default graphical.target
