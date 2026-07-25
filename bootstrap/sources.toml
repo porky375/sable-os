@@ -85,3 +85,170 @@ name = "pacman"
 source = "https://gitlab.archlinux.org/pacman/pacman/-/archive/v7.1.0/pacman-v7.1.0.tar.gz"
 revision = "v7.1.0"
 sha256 = "1090f680958a73dc1f443a1eb919bd2ad77b3caff38e92e9737dec100c647bc9"
+
+# --- temp-tools phase: core POSIX build userland ---
+# Versions match the host seed's current releases. GNU tarballs record the
+# canonical ftp.gnu.org URL; their SHA-256 was computed from a byte-identical
+# mirror (mirrors.kernel.org) when ftp.gnu.org rate-limited the fetch.
+
+[[component]]
+name = "make"
+source = "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz"
+revision = "make-4.4.1"
+sha256 = "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3"
+
+[[component]]
+name = "bash"
+source = "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz"
+revision = "bash-5.3"
+sha256 = "0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba"
+
+[[component]]
+name = "coreutils"
+source = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.11.tar.xz"
+revision = "coreutils-9.11"
+sha256 = "394024eda0a5955217ceda9cd1201e65dc8fa3aa29c2951135a49521d57c3cc3"
+
+[[component]]
+name = "sed"
+source = "https://ftp.gnu.org/gnu/sed/sed-4.10.tar.xz"
+revision = "sed-4.10"
+sha256 = "b8e72182b2ec96a3574e2998c47b7aaa64cc20ce000d8e9ac313cc07cecf28c7"
+
+[[component]]
+name = "gawk"
+source = "https://ftp.gnu.org/gnu/gawk/gawk-5.4.1.tar.xz"
+revision = "gawk-5.4.1"
+sha256 = "07f6f7342b7febe4313fc2c2542ad93d64fe20ad8717200109f105a826f5fd37"
+
+[[component]]
+name = "grep"
+source = "https://ftp.gnu.org/gnu/grep/grep-3.12.tar.xz"
+revision = "grep-3.12"
+sha256 = "2649b27c0e90e632eadcd757be06c6e9a4f48d941de51e7c0f83ff76408a07b9"
+
+[[component]]
+name = "diffutils"
+source = "https://ftp.gnu.org/gnu/diffutils/diffutils-3.12.tar.xz"
+revision = "diffutils-3.12"
+sha256 = "7c8b7f9fc8609141fdea9cece85249d308624391ff61dedaf528fcb337727dfd"
+
+[[component]]
+name = "findutils"
+source = "https://ftp.gnu.org/gnu/findutils/findutils-4.11.0.tar.xz"
+revision = "findutils-4.11.0"
+sha256 = "bfd19cb06cc71f3352d567e90284d8cdac02ac89774bbeadf0b533b0c11432fd"
+
+[[component]]
+name = "m4"
+source = "https://ftp.gnu.org/gnu/m4/m4-1.4.21.tar.xz"
+revision = "m4-1.4.21"
+sha256 = "f25c6ab51548a73a75558742fb031e0625d6485fe5f9155949d6486a2408ab66"
+
+[[component]]
+name = "autoconf"
+source = "https://ftp.gnu.org/gnu/autoconf/autoconf-2.73.tar.xz"
+revision = "autoconf-2.73"
+sha256 = "9fd672b1c8425fac2fa67fa0477b990987268b90ff36d5f016dae57be0d6b52e"
+
+[[component]]
+name = "automake"
+source = "https://ftp.gnu.org/gnu/automake/automake-1.18.1.tar.xz"
+revision = "automake-1.18.1"
+sha256 = "168aa363278351b89af56684448f525a5bce5079d0b6842bd910fdd3f1646887"
+
+[[component]]
+name = "libtool"
+source = "https://ftp.gnu.org/gnu/libtool/libtool-2.5.4.tar.xz"
+revision = "libtool-2.5.4"
+sha256 = "f81f5860666b0bc7d84baddefa60d1cb9fa6fceb2398cc3baca6afaa60266675"
+
+[[component]]
+name = "bison"
+source = "https://ftp.gnu.org/gnu/bison/bison-3.8.2.tar.xz"
+revision = "bison-3.8.2"
+sha256 = "9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2"
+
+[[component]]
+name = "flex"
+source = "https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz"
+revision = "v2.6.4"
+sha256 = "e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995"
+
+[[component]]
+name = "gperf"
+source = "https://ftp.gnu.org/gnu/gperf/gperf-3.3.tar.gz"
+revision = "gperf-3.3"
+sha256 = "fd87e0aba7e43ae054837afd6cd4db03a3f2693deb3619085e6ed9d8d9604ad8"
+
+[[component]]
+name = "texinfo"
+source = "https://ftp.gnu.org/gnu/texinfo/texinfo-7.3.tar.xz"
+revision = "texinfo-7.3"
+sha256 = "51f74eb0f51cfa9873b85264dfdd5d46e8957ec95b88f0fb762f63d9e164c72e"
+
+[[component]]
+name = "perl"
+source = "https://www.cpan.org/src/5.0/perl-5.42.2.tar.xz"
+revision = "perl-5.42.2"
+sha256 = "0a585eeb9e363c0f80482ddb3571625250c2c86aeb408853e8ea50805cfb14bb"
+
+[[component]]
+name = "python"
+source = "https://www.python.org/ftp/python/3.14.6/Python-3.14.6.tar.xz"
+revision = "v3.14.6"
+sha256 = "143b1dddefaec3bd2e21e3b839b34a2b7fb9842272883c576420d605e9f30c63"
+
+[[component]]
+name = "gettext"
+source = "https://ftp.gnu.org/gnu/gettext/gettext-0.26.tar.xz"
+revision = "gettext-0.26"
+sha256 = "d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00"
+
+[[component]]
+name = "pkgconf"
+source = "https://distfiles.ariadne.space/pkgconf/pkgconf-2.4.3.tar.xz"
+revision = "pkgconf-2.4.3"
+sha256 = "51203d99ed573fa7344bf07ca626f10c7cc094e0846ac4aa0023bd0c83c25a41"
+
+[[component]]
+name = "patch"
+source = "https://ftp.gnu.org/gnu/patch/patch-2.8.tar.xz"
+revision = "patch-2.8"
+sha256 = "f87cee69eec2b4fcbf60a396b030ad6aa3415f192aa5f7ee84cad5e11f7f5ae3"
+
+[[component]]
+name = "gzip"
+source = "https://ftp.gnu.org/gnu/gzip/gzip-1.14.tar.xz"
+revision = "gzip-1.14"
+sha256 = "01a7b881bd220bfdf615f97b8718f80bdfd3f6add385b993dcf6efd14e8c0ac6"
+
+[[component]]
+name = "tar"
+source = "https://ftp.gnu.org/gnu/tar/tar-1.35.tar.xz"
+revision = "tar-1.35"
+sha256 = "4d62ff37342ec7aed748535323930c7cf94acf71c3591882b26a7ea50f3edc16"
+
+[[component]]
+name = "file"
+source = "https://astron.com/pub/file/file-5.48.tar.gz"
+revision = "file-5.48"
+sha256 = "ed14656883b23a364b4057c05595d93252da9bc473d30106519519d0da141283"
+
+[[component]]
+name = "ncurses"
+source = "https://ftp.gnu.org/gnu/ncurses/ncurses-6.6.tar.gz"
+revision = "ncurses-6.6"
+sha256 = "355b4cbbed880b0381a04c46617b7656e362585d52e9cf84a67e2009b749ff11"
+
+[[component]]
+name = "readline"
+source = "https://ftp.gnu.org/gnu/readline/readline-8.3.tar.gz"
+revision = "readline-8.3"
+sha256 = "fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc"
+
+[[component]]
+name = "bzip2"
+source = "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz"
+revision = "bzip2-1.0.8"
+sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"

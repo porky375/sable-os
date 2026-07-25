@@ -78,12 +78,22 @@ toolchain sources were pinned with immutable revisions and SHA-256 in
 The `gmp`, `mpc`, and `zlib` digests were cross-checked against their
 well-known published values.
 
-Manifest state: **13 pinned, 47 unpinned, 3 frontier** (`bootstrap/check-sources`
-and `bootstrap/check-dependencies` both pass). The remaining unpinned components
-are the `temp-tools` userland and the `chroot-base` phase (system libraries plus
-the crypto/TLS frontier). Signature verification (acceptance criterion 2) is the
-next layer to add to the fetch/verify tooling; today's pins rest on SHA-256 over
-TLS-authenticated upstreams.
+The **temp-tools phase is also fully pinned** — the 27-component minimal POSIX
+userland (make, bash, coreutils, sed, gawk, grep, diffutils, findutils, m4,
+autoconf, automake, libtool, bison, flex, gperf, texinfo, perl, python, gettext,
+pkgconf, patch, gzip, tar, file, ncurses, readline, bzip2). Versions match the
+host seed's current releases. GNU tarballs record the canonical `ftp.gnu.org`
+URL; their SHA-256 was computed from a byte-identical mirror
+(`mirrors.kernel.org`) when `ftp.gnu.org` rate-limited the bulk fetch — the
+digest identifies the exact bytes regardless of which mirror serves them.
+
+Manifest state: **40 pinned, 20 unpinned, 3 frontier** (`bootstrap/check-sources`
+and `bootstrap/check-dependencies` both pass). The only remaining unpinned
+components are the `chroot-base` phase (build systems, kernel-build extras,
+system libraries, and the crypto/TLS frontier: openssl, curl, and the gnupg
+stack). Signature verification (acceptance criterion 2) is the next layer to add
+to the fetch/verify tooling; today's pins rest on SHA-256 over TLS-authenticated
+upstreams.
 
 ### Expansion frontier
 

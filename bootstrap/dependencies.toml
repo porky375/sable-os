@@ -178,7 +178,7 @@ name = "bzip2"
 phase = "temp-tools"
 role = "compression-lib"
 upstream = "https://sourceware.org/bzip2/"
-pinned = false
+pinned = true
 needed_by = ["libarchive"]
 
 # --- temp-tools: core POSIX build userland ---
@@ -188,7 +188,7 @@ name = "make"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/make/"
-pinned = false
+pinned = true
 needed_by = ["toolchain", "chroot-base"]
 
 [[component]]
@@ -196,7 +196,7 @@ name = "bash"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/bash/"
-pinned = false
+pinned = true
 needed_by = ["toolchain", "chroot-base"]
 
 [[component]]
@@ -204,7 +204,7 @@ name = "coreutils"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/coreutils/"
-pinned = false
+pinned = true
 needed_by = ["toolchain", "chroot-base"]
 
 [[component]]
@@ -212,7 +212,7 @@ name = "sed"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/sed/"
-pinned = false
+pinned = true
 needed_by = ["toolchain", "chroot-base"]
 
 [[component]]
@@ -220,7 +220,7 @@ name = "gawk"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/gawk/"
-pinned = false
+pinned = true
 needed_by = ["glibc", "chroot-base"]
 
 [[component]]
@@ -228,7 +228,7 @@ name = "grep"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/grep/"
-pinned = false
+pinned = true
 needed_by = ["toolchain", "chroot-base"]
 
 [[component]]
@@ -236,7 +236,7 @@ name = "diffutils"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/diffutils/"
-pinned = false
+pinned = true
 needed_by = ["toolchain"]
 
 [[component]]
@@ -244,7 +244,7 @@ name = "findutils"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/findutils/"
-pinned = false
+pinned = true
 needed_by = ["chroot-base"]
 
 [[component]]
@@ -252,7 +252,7 @@ name = "m4"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/m4/"
-pinned = false
+pinned = true
 needed_by = ["autoconf", "bison", "flex"]
 
 [[component]]
@@ -260,7 +260,7 @@ name = "autoconf"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/autoconf/"
-pinned = false
+pinned = true
 needed_by = ["automake", "libtool", "chroot-base"]
 note = "Required when a package recipe regenerates configure scripts."
 
@@ -269,7 +269,7 @@ name = "automake"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/automake/"
-pinned = false
+pinned = true
 needed_by = ["chroot-base"]
 note = "Requires autoconf and Perl."
 
@@ -278,7 +278,7 @@ name = "libtool"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/libtool/"
-pinned = false
+pinned = true
 needed_by = ["chroot-base"]
 note = "Requires autoconf, automake, m4, and file."
 
@@ -287,7 +287,7 @@ name = "bison"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/bison/"
-pinned = false
+pinned = true
 needed_by = ["glibc", "linux-lts", "systemd"]
 note = "Requires m4."
 
@@ -296,7 +296,7 @@ name = "flex"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://github.com/westes/flex"
-pinned = false
+pinned = true
 needed_by = ["linux-lts", "util-linux"]
 note = "Requires m4."
 
@@ -305,7 +305,7 @@ name = "gperf"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/gperf/"
-pinned = false
+pinned = true
 needed_by = ["systemd", "kmod"]
 
 [[component]]
@@ -313,7 +313,7 @@ name = "texinfo"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/texinfo/"
-pinned = false
+pinned = true
 needed_by = ["binutils", "gcc"]
 note = "makeinfo for toolchain docs; can be stubbed but is normally in-closure."
 
@@ -322,7 +322,7 @@ name = "perl"
 phase = "temp-tools"
 role = "language-runtime"
 upstream = "https://www.perl.org/"
-pinned = false
+pinned = true
 needed_by = ["glibc", "linux-lts", "openssl"]
 
 [[component]]
@@ -330,7 +330,7 @@ name = "python"
 phase = "temp-tools"
 role = "language-runtime"
 upstream = "https://www.python.org/"
-pinned = false
+pinned = true
 needed_by = ["glibc", "meson", "systemd", "linux-lts"]
 note = "CPython. Drives meson and several glibc/kernel build scripts."
 
@@ -339,7 +339,7 @@ name = "gettext"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/gettext/"
-pinned = false
+pinned = true
 needed_by = ["chroot-base"]
 note = "i18n tooling required by many autotools configure scripts."
 
@@ -348,7 +348,7 @@ name = "pkgconf"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://github.com/pkgconf/pkgconf"
-pinned = false
+pinned = true
 needed_by = ["systemd", "util-linux", "libarchive", "curl"]
 note = "Provides pkg-config."
 
@@ -357,7 +357,7 @@ name = "patch"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/patch/"
-pinned = false
+pinned = true
 needed_by = ["chroot-base"]
 
 [[component]]
@@ -365,7 +365,7 @@ name = "gzip"
 phase = "temp-tools"
 role = "compression-lib"
 upstream = "https://www.gnu.org/software/gzip/"
-pinned = false
+pinned = true
 needed_by = ["chroot-base"]
 
 [[component]]
@@ -373,7 +373,7 @@ name = "tar"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.gnu.org/software/tar/"
-pinned = false
+pinned = true
 needed_by = ["toolchain", "chroot-base"]
 
 [[component]]
@@ -381,7 +381,7 @@ name = "file"
 phase = "temp-tools"
 role = "build-tool"
 upstream = "https://www.darwinsys.com/file/"
-pinned = false
+pinned = true
 needed_by = ["libtool", "chroot-base"]
 note = "libmagic; probed by many configure scripts."
 
@@ -390,7 +390,7 @@ name = "ncurses"
 phase = "temp-tools"
 role = "system-lib"
 upstream = "https://invisible-island.net/ncurses/"
-pinned = false
+pinned = true
 needed_by = ["bash", "util-linux"]
 
 [[component]]
@@ -398,7 +398,7 @@ name = "readline"
 phase = "temp-tools"
 role = "system-lib"
 upstream = "https://www.gnu.org/software/readline/"
-pinned = false
+pinned = true
 needed_by = ["bash"]
 note = "Requires ncurses."
 
