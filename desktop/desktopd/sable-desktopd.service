@@ -12,7 +12,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=%S/sable
+ReadWritePaths=%h/.local/state/sable
 
 [Install]
 WantedBy=graphical-session.target

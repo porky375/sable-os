@@ -1,12 +1,14 @@
 timeout: 2
 default_entry: 1
 interface_branding: Sable
-interface_branding_color: 7
+interface_branding_color: f4f4f5
 interface_help_hidden: yes
-term_background: 00101010
+term_background: c0101010
 term_foreground: f4f4f5
-term_palette: 101010;ef4444;22c55e;eab308;3b82f6;a855f7;06b6d4;d4d4d8
-term_palette_bright: 27272a;f87171;4ade80;facc15;60a5fa;c084fc;22d3ee;ffffff
+term_palette: 0b0b0b;3f3f46;52525b;71717a;a1a1aa;d4d4d8;e4e4e7;f4f4f5
+term_palette_bright: 18181b;52525b;71717a;a1a1aa;cbd5e1;e4e4e7;f8fafc;ffffff
+term_margin: 56
+term_margin_gradient: 16
 
 /Sable
     protocol: linux

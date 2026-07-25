@@ -3,6 +3,7 @@
 /repo/out/
 /target/
 /.cache/
+/.sable-ai/
 *.iso
 *.img
 *.qcow2

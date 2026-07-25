@@ -1,0 +1,36 @@
+---
+componentName: sable
+welcomeStyleCalamares: false
+welcomeExpandingLogo: false
+windowExpanding: normal
+windowSize: 1080px,680px
+windowPlacement: center
+sidebar: widget,left
+navigation: widget
+
+strings:
+  productName: Sable
+  shortProductName: Sable
+  version: Bootstrap Preview
+  shortVersion: Preview
+  versionedName: Sable Bootstrap Preview
+  shortVersionedName: Sable Preview
+  bootloaderEntryName: Sable
+  supportUrl: https://github.com/porky375/sable-os/issues
+  knownIssuesUrl: https://github.com/porky375/sable-os/issues
+  releaseNotesUrl: https://github.com/porky375/sable-os
+  donateUrl: ""
+
+images:
+  productLogo: sable-mark.svg
+  productIcon: sable-mark.svg
+  productWelcome: sable-mark.svg
+
+style:
+  SidebarBackground: "#101010"
+  SidebarText: "#A1A1AA"
+  SidebarTextCurrent: "#101010"
+  SidebarBackgroundCurrent: "#F4F4F5"
+
+slideshow: show.qml
+slideshowAPI: 2

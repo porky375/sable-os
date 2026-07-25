@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command cargo
+require_command pkexec
+
+build_root="$(require_build_root)"
+[[ -f "$build_root/.sable-build-volume" ]] || {
+    printf 'build root is not a marked Sable build volume: %s\n' "$build_root" >&2
+    exit 1
+}
+
+image="${1:-$build_root/images/sable-bootstrap.raw}"
+image="$(readlink -m -- "$image")"
+[[ "$image" == "$build_root/"* && ! -b "$image" ]] || {
+    printf 'image must be a regular path below SABLE_BUILD_ROOT\n' >&2
+    exit 1
+}
+
+wallpaper="${SABLE_WALLPAPER:-$project_root/assets/wallpapers/sable-default.png}"
+[[ -f "$wallpaper" ]] || {
+    printf 'wallpaper does not exist: %s\n' "$wallpaper" >&2
+    exit 1
+}
+
+printf 'Building sable-desktopd...\n'
+cargo build --locked --release -p sable-desktopd
+
+printf 'Creating Sable bootstrap image at %s\n' "$image"
+exec pkexec env \
+    SABLE_BUILD_ROOT="$build_root" \
+    SABLE_PROJECT_ROOT="$project_root" \
+    SABLE_IMAGE="$image" \
+    SABLE_WALLPAPER="$wallpaper" \
+    SABLE_OWNER_UID="$(id -u)" \
+    SABLE_OWNER_GID="$(id -g)" \
+    "$script_dir/build-dev-image-root"

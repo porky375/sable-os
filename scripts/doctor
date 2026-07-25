@@ -7,8 +7,10 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/lib/common.sh"
 load_project_env
 
-required=(bash git jq makepkg pacman repo-add rustc cargo)
-optional=(mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak)
+required=(bash cargo curl expac flock git jq makepkg pacman pactree python3
+    repo-add rustc sha256sum)
+optional=(mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak
+    arch-chroot limine magick pacstrap parted mkfs.btrfs mkfs.fat rsync socat)
 missing_required=0
 
 printf 'Project: %s %s (%s)\n' "$SABLE_PRETTY_NAME" "$SABLE_VERSION" "$SABLE_CHANNEL"

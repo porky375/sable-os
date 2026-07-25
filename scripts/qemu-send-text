@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command socat
+build_root="$(require_build_root)"
+monitor_socket="${SABLE_QEMU_MONITOR:-$build_root/tmp/sable-vm-monitor.sock}"
+text="${1:?usage: qemu-send-text TEXT}"
+key_delay="${SABLE_QEMU_KEY_DELAY:-0.04}"
+
+[[ -S "$monitor_socket" ]] || {
+    printf 'QEMU monitor socket is unavailable: %s\n' "$monitor_socket" >&2
+    exit 1
+}
+
+key_name() {
+    case "$1" in
+        [a-z0-9]) printf '%s' "$1" ;;
+        ' ') printf 'spc' ;;
+        '-') printf 'minus' ;;
+        '_') printf 'shift-minus' ;;
+        '=') printf 'equal' ;;
+        '+') printf 'shift-equal' ;;
+        '*') printf 'shift-8' ;;
+        '/') printf 'slash' ;;
+        '.') printf 'dot' ;;
+        ',') printf 'comma' ;;
+        ':') printf 'shift-semicolon' ;;
+        ';') printf 'semicolon' ;;
+        "'") printf 'apostrophe' ;;
+        '(') printf 'shift-9' ;;
+        ')') printf 'shift-0' ;;
+        '{') printf 'shift-leftbrace' ;;
+        '}') printf 'shift-rightbrace' ;;
+        '@') printf 'shift-apostrophe' ;;
+        '|') printf 'shift-backslash' ;;
+        '>') printf 'shift-dot' ;;
+        '<') printf 'shift-comma' ;;
+        *) return 1 ;;
+    esac
+}
+
+{
+    for ((index = 0; index < ${#text}; index++)); do
+        character="${text:index:1}"
+        if ! key="$(key_name "$character")"; then
+            printf 'unsupported character at offset %d: %q\n' \
+                "$index" "$character" >&2
+            exit 2
+        fi
+        printf 'sendkey %s 20\n' "$key"
+        sleep "$key_delay"
+    done
+} | socat - UNIX-CONNECT:"$monitor_socket" >/dev/null

@@ -3,13 +3,25 @@
 set -euo pipefail
 
 packages=(
+    arch-install-scripts
     archiso
     base-devel
+    btrfs-progs
     cmake
+    curl
+    dosfstools
     e2fsprogs
+    expac
     jq
+    limine
+    pacman-contrib
+    parted
+    python
     qemu-base
+    rsync
+    rust
     shellcheck
+    socat
     udisks2
     edk2-ovmf
 )

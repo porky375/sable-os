@@ -1,0 +1,32 @@
+skip_selection = false
+
+[background]
+path = "/usr/share/backgrounds/sable/wallpaper.png"
+fit = "Cover"
+
+[env]
+XDG_CURRENT_DESKTOP = "Hyprland"
+XDG_SESSION_DESKTOP = "Sable"
+XDG_SESSION_TYPE = "wayland"
+
+[GTK]
+application_prefer_dark_theme = true
+cursor_theme_name = "Adwaita"
+cursor_blink = false
+font_name = "Noto Sans 13"
+icon_theme_name = "Adwaita"
+theme_name = "Adwaita"
+
+[commands]
+reboot = [ "systemctl", "reboot" ]
+poweroff = [ "systemctl", "poweroff" ]
+x11_prefix = [ "startx", "/usr/bin/env" ]
+
+[appearance]
+greeting_msg = "Sable"
+
+[widget.clock]
+format = "%A  %H:%M"
+resolution = "1s"
+label_width = 180
+locale = "en_GB"

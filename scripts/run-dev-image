@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command qemu-system-x86_64
+build_root="$(require_build_root)"
+image="${1:-$build_root/images/sable-bootstrap.raw}"
+assert_regular_image_target "$image"
+
+installer_target="${SABLE_INSTALLER_TARGET:-$build_root/images/sable-installer-target.raw}"
+installer_target="$(readlink -m -- "$installer_target")"
+[[ "$installer_target" == "$build_root/"* && ! -b "$installer_target" ]] || {
+    printf 'installer target must be a regular path below SABLE_BUILD_ROOT\n' >&2
+    exit 1
+}
+if [[ ! -e "$installer_target" ]]; then
+    truncate -s 32G "$installer_target"
+fi
+assert_regular_image_target "$installer_target"
+
+monitor_socket="$build_root/tmp/sable-vm-monitor.sock"
+mkdir -p -- "$(dirname -- "$monitor_socket")"
+rm -f -- "$monitor_socket"
+
+ovmf_vars="$build_root/images/sable-ovmf-vars.fd"
+if [[ ! -f "$ovmf_vars" ]]; then
+    cp /usr/share/edk2/x64/OVMF_VARS.4m.fd "$ovmf_vars"
+fi
+
+display_args=(-display "gtk,gl=on" -device virtio-vga-gl)
+if ! qemu-system-x86_64 -display help 2>&1 | grep -q '^gtk'; then
+    display_args=(-display none -vnc 127.0.0.1:1 -device virtio-vga)
+    printf 'QEMU GTK UI is unavailable; VNC is listening on 127.0.0.1:5901.\n'
+fi
+
+source_share_args=()
+if [[ "${SABLE_DEV_SOURCE_SHARE:-0}" == 1 ]]; then
+    source_share_args=(
+        -fsdev "local,id=sable-source,path=$project_root,security_model=none,readonly=on"
+        -device "virtio-9p-pci,fsdev=sable-source,mount_tag=sable_source"
+    )
+fi
+
+audio_args=(
+    -audiodev 'none,id=audio0'
+    -device ich9-intel-hda
+    -device 'hda-duplex,audiodev=audio0'
+)
+if qemu-system-x86_64 -audiodev help 2>&1 | grep -q '^pipewire$' &&
+    command -v pw-cli >/dev/null 2>&1 &&
+    pw-cli info 0 >/dev/null 2>&1; then
+    audio_args=(
+        -audiodev 'pipewire,id=audio0'
+        -device ich9-intel-hda
+        -device 'hda-duplex,audiodev=audio0'
+    )
+fi
+
+exec qemu-system-x86_64 \
+    -name "Sable Bootstrap Preview" \
+    -machine q35,accel=kvm \
+    -cpu host \
+    -smp 4 \
+    -m 6G \
+    -device virtio-rng-pci \
+    -device virtio-net-pci,netdev=net0 \
+    -netdev user,id=net0 \
+    -device qemu-xhci \
+    -device usb-kbd \
+    -device usb-tablet \
+    -monitor "unix:$monitor_socket,server=on,wait=off" \
+    -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
+    -drive if=pflash,format=raw,file="$ovmf_vars" \
+    -drive if=virtio,format=raw,file="$image" \
+    -drive if=virtio,format=raw,file="$installer_target" \
+    "${source_share_args[@]}" \
+    "${audio_args[@]}" \
+    "${display_args[@]}"

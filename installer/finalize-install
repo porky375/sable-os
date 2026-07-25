@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+installed_user="${1:-}"
+[[ -n "$installed_user" && "$installed_user" != sable ]] || {
+    printf 'invalid installed username: %s\n' "$installed_user" >&2
+    exit 1
+}
+id "$installed_user" >/dev/null 2>&1 || {
+    printf 'installed user does not exist: %s\n' "$installed_user" >&2
+    exit 1
+}
+
+rm -f \
+    /etc/sable-installer-preview \
+    /etc/sudoers.d/00-sable-live \
+    /usr/local/bin/sable-session-ready
+rm -rf /etc/systemd/system/getty@tty1.service.d
+
+if id sable >/dev/null 2>&1; then
+    userdel -r sable
+fi
+
+install -d -m0755 /var/lib/sable
+printf 'installed-by=calamares\n' >/var/lib/sable/install-state
+chmod 0644 /var/lib/sable/install-state
+
+systemctl set-default graphical.target
+systemctl disable getty@tty1.service
+systemctl enable \
+    NetworkManager.service \
+    greetd.service \
+    sable-installed-greeter-ready.service

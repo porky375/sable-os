@@ -5,7 +5,21 @@ set -euo pipefail
 errors=()
 warnings=()
 
+[[ -f /etc/sable-installer-preview ]] ||
+    errors+=("This installer build is enabled only in the Sable preview VM")
+
+if ! systemd-detect-virt --vm --quiet; then
+    errors+=("Physical-disk installation is disabled until the alpha storage tests pass")
+fi
+
 [[ -d /sys/firmware/efi ]] || errors+=("Sable alpha requires UEFI")
+
+disk_count="$(
+    lsblk -dn -o TYPE 2>/dev/null |
+        awk '$1 == "disk" { count++ } END { print count + 0 }'
+)"
+((disk_count >= 2)) ||
+    errors+=("Attach a disposable target disk in addition to the live system disk")
 
 if lsblk -J -o NAME,FSTYPE,LABEL 2>/dev/null |
     jq -e '.. | objects | select((.fstype // "" | ascii_downcase) == "bitlocker")' \

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+manifest="${1:-}"
+[[ -n "$manifest" && -f "$manifest" ]] || {
+    printf 'usage: %s path/to/sources.toml\n' "$0" >&2
+    exit 2
+}
+
+command -v python3 >/dev/null 2>&1 || {
+    printf 'required command is missing: python3\n' >&2
+    exit 1
+}
+
+python3 - "$manifest" <<'PY'
+import json
+import pathlib
+import re
+import sys
+import tomllib
+import urllib.parse
+
+manifest_path = pathlib.Path(sys.argv[1])
+with manifest_path.open("rb") as manifest_file:
+    data = tomllib.load(manifest_file)
+
+top_keys = {"schema_version", "architecture", "status", "component"}
+unknown_top = set(data) - top_keys
+if unknown_top:
+    raise SystemExit(f"unknown manifest keys: {', '.join(sorted(unknown_top))}")
+
+if data.get("schema_version") != 1:
+    raise SystemExit("unsupported source manifest schema")
+if data.get("architecture") != "x86_64":
+    raise SystemExit("stage-0 manifest architecture must be x86_64")
+if data.get("status") != "PINNED":
+    raise SystemExit("stage-0 source manifest is not PINNED")
+
+components = data.get("component")
+if not isinstance(components, list) or not components:
+    raise SystemExit("source manifest must contain components")
+
+names = set()
+filenames = set()
+component_keys = {"name", "source", "revision", "sha256"}
+for index, component in enumerate(components):
+    if not isinstance(component, dict):
+        raise SystemExit(f"component {index} is not a table")
+    unknown = set(component) - component_keys
+    missing = component_keys - set(component)
+    if unknown or missing:
+        details = []
+        if unknown:
+            details.append(f"unknown={','.join(sorted(unknown))}")
+        if missing:
+            details.append(f"missing={','.join(sorted(missing))}")
+        raise SystemExit(f"invalid component {index}: {' '.join(details)}")
+
+    name = component["name"]
+    revision = component["revision"]
+    digest = component["sha256"]
+    source = component["source"]
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9+._-]*", name):
+        raise SystemExit(f"invalid component name: {name!r}")
+    if name in names:
+        raise SystemExit(f"duplicate component name: {name}")
+    names.add(name)
+    if not isinstance(revision, str) or not revision or revision.startswith("PIN_"):
+        raise SystemExit(f"invalid revision for {name}")
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise SystemExit(f"invalid SHA-256 for {name}")
+    if not isinstance(source, str):
+        raise SystemExit(f"invalid source URL for {name}")
+    parsed = urllib.parse.urlparse(source)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.query or parsed.fragment:
+        raise SystemExit(f"source for {name} must be a plain HTTPS URL")
+    filename = pathlib.PurePosixPath(parsed.path).name
+    if not filename or filename in {".", ".."}:
+        raise SystemExit(f"source for {name} has no archive filename")
+    if filename in filenames:
+        raise SystemExit(f"duplicate source filename: {filename}")
+    filenames.add(filename)
+    component["filename"] = filename
+
+json.dump(data, sys.stdout, indent=2, sort_keys=True)
+sys.stdout.write("\n")
+PY

@@ -76,7 +76,13 @@ fi
 }
 
 trap 'rm -f -- "$temporary"' EXIT
-truncate -s "${size_gib}G" "$temporary"
+# Preallocate when the host filesystem supports it (ext4/btrfs) so the image
+# does not grow at runtime; fall back to a sparse file on filesystems that
+# reject fallocate (e.g. NTFS via ntfs-3g). Runtime growth over ntfs-3g causes
+# fragmentation-driven FUSE thrash and has wedged builds. See docs/BUILD_STORAGE.md.
+if ! { command -v fallocate >/dev/null 2>&1 && fallocate -l "${size_gib}G" "$temporary" 2>/dev/null; }; then
+    truncate -s "${size_gib}G" "$temporary"
+fi
 mkfs.ext4 -q -F -L SABLE_BUILD \
     -E "root_owner=$(id -u):$(id -g),lazy_itable_init=1,lazy_journal_init=1" \
     "$temporary"

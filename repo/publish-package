@@ -66,4 +66,15 @@ done
 
 database="$destination/$repository.db.tar.zst"
 repo-add --sign --key "$SABLE_SIGNING_KEY" "$database" "${published[@]}"
+
+verification_key="$(mktemp)"
+cleanup() {
+    rm -f -- "$verification_key"
+}
+trap cleanup EXIT
+gpg --batch --armor --export "$SABLE_SIGNING_KEY" >"$verification_key"
+"$project_root/repo/verify-repository-signatures" \
+    --keyring "$verification_key" \
+    "$destination"
+
 printf 'Published %d package(s) to %s\n' "${#published[@]}" "$destination"

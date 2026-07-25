@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+
+for command_name in jq sha256sum; do
+    require_command "$command_name"
+done
+
+build_root="$(require_build_root)"
+manifest_json="$("$script_dir/manifest-json" "$script_dir/sources.toml")"
+cache_root="$build_root/sources/stage0"
+lock_file="$cache_root/sources.lock.json"
+[[ -f "$lock_file" ]] || {
+    printf 'source provenance lock does not exist: %s\n' "$lock_file" >&2
+    printf 'run bootstrap/fetch-sources first\n' >&2
+    exit 1
+}
+jq empty "$lock_file"
+
+verified=0
+while IFS=$'\t' read -r name revision expected filename; do
+    archive="$cache_root/$filename"
+    [[ -f "$archive" ]] || {
+        printf 'missing source archive for %s: %s\n' "$name" "$archive" >&2
+        exit 1
+    }
+    actual="$(sha256sum "$archive" | awk '{print $1}')"
+    [[ "$actual" == "$expected" ]] || {
+        printf 'SHA-256 mismatch for %s (%s)\n' "$name" "$archive" >&2
+        printf 'expected %s\nactual   %s\n' "$expected" "$actual" >&2
+        exit 1
+    }
+    jq -e \
+        --arg name "$name" \
+        --arg revision "$revision" \
+        --arg sha256 "$expected" \
+        --arg filename "$filename" \
+        '.components | any(
+          .name == $name and .revision == $revision and
+          .sha256 == $sha256 and .filename == $filename
+        )' "$lock_file" >/dev/null || {
+        printf 'provenance lock does not match %s\n' "$name" >&2
+        exit 1
+    }
+    printf 'Verified %s (%s).\n' "$name" "$revision"
+    ((verified += 1))
+done < <(
+    jq -r '.component[] |
+      [.name, .revision, .sha256, .filename] | @tsv' \
+      <<<"$manifest_json"
+)
+
+lock_count="$(jq '.components | length' "$lock_file")"
+[[ "$lock_count" -eq "$verified" ]] || {
+    printf 'provenance lock contains %s components; expected %s\n' \
+        "$lock_count" "$verified" >&2
+    exit 1
+}
+printf 'All %s stage-0 source archives passed offline verification.\n' "$verified"

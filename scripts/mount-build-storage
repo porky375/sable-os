@@ -42,6 +42,12 @@ if [[ -z "$mount_point" ]]; then
     udisksctl mount -b "$loop_device" >/dev/null
     mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1 || true)"
 fi
+
+mount_options="$(findmnt -nr -S "$loop_device" -o OPTIONS | head -n1 || true)"
+if [[ ",$mount_options," == *,ro,* ]]; then
+    printf 'build image mounted read-only (loop %s); detach it and retry\n' "$loop_device" >&2
+    exit 1
+fi
 [[ -n "$mount_point" && -d "$mount_point" && -w "$mount_point" ]] || {
     printf 'mounted build filesystem is not writable\n' >&2
     exit 1

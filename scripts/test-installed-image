@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command qemu-system-x86_64
+require_command socat
+build_root="$(require_build_root)"
+image="${1:-$build_root/images/sable-installer-target.raw}"
+assert_regular_image_target "$image"
+
+test_root="$build_root/tmp/installed-image-test"
+serial_log="$build_root/logs/sable-installed-serial.log"
+greeter_shot="$build_root/images/sable-installed-greeter.ppm"
+greeter_png="$build_root/images/sable-installed-greeter.png"
+monitor_socket="$test_root/monitor.sock"
+pid_file="$test_root/qemu.pid"
+ovmf_vars="$test_root/OVMF_VARS.4m.fd"
+
+rm -rf -- "$test_root"
+mkdir -p -- "$test_root" "$(dirname -- "$serial_log")"
+rm -f -- "$serial_log" "$greeter_shot" "$greeter_png"
+cp /usr/share/edk2/x64/OVMF_VARS.4m.fd "$ovmf_vars"
+
+# Invoked by the EXIT trap.
+# shellcheck disable=SC2329
+cleanup() {
+    set +e
+    if [[ -f "$pid_file" ]]; then
+        pid="$(<"$pid_file")"
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+qemu-system-x86_64 \
+    -daemonize \
+    -pidfile "$pid_file" \
+    -name "Sable installed greeter test" \
+    -machine q35,accel=kvm \
+    -cpu host \
+    -smp 4 \
+    -m 4G \
+    -display none \
+    -device virtio-vga \
+    -device virtio-rng-pci \
+    -device virtio-net-pci,netdev=net0 \
+    -netdev user,id=net0 \
+    -audiodev none,id=audio0 \
+    -device ich9-intel-hda \
+    -device hda-duplex,audiodev=audio0 \
+    -serial "file:$serial_log" \
+    -monitor "unix:$monitor_socket,server=on,wait=off" \
+    -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
+    -drive if=pflash,format=raw,file="$ovmf_vars" \
+    -drive if=virtio,format=raw,snapshot=on,file="$image"
+
+for _ in {1..40}; do
+    [[ -S "$monitor_socket" ]] && break
+    sleep 0.25
+done
+[[ -S "$monitor_socket" ]] || {
+    printf 'QEMU monitor did not become available\n' >&2
+    exit 1
+}
+
+for _ in {1..180}; do
+    if grep -q 'SABLE_GREETER_READY' "$serial_log" 2>/dev/null; then
+        sleep 3
+        printf 'screendump %s\n' "$greeter_shot" |
+            socat - UNIX-CONNECT:"$monitor_socket" >/dev/null
+        if command -v magick >/dev/null 2>&1; then
+            magick "$greeter_shot" "$greeter_png"
+            color_count="$(magick "$greeter_png" -format '%k' info:)"
+            if ((color_count < 16)); then
+                printf 'the installed greeter framebuffer is blank or incomplete\n' >&2
+                exit 1
+            fi
+        fi
+        printf 'Installed Sable reached its graphical greeter.\n'
+        printf 'Greeter screenshot: %s\n' "$greeter_shot"
+        exit 0
+    fi
+    if grep -q 'SABLE_GREETER_FAILED' "$serial_log" 2>/dev/null; then
+        printf 'the installed graphical greeter reported failure\n' >&2
+        tail -n 120 "$serial_log" >&2
+        exit 1
+    fi
+    if [[ ! -e "/proc/$(<"$pid_file")" ]]; then
+        printf 'QEMU exited before the installed greeter was ready\n' >&2
+        tail -n 100 "$serial_log" >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+printf 'timed out waiting for the installed graphical greeter\n' >&2
+tail -n 140 "$serial_log" >&2
+exit 1

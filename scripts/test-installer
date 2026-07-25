@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+settings="$project_root/installer/calamares/settings.conf"
+wallpaper="$project_root/assets/wallpapers/sable-default.png"
+
+required_files=(
+    "$wallpaper"
+    "$project_root/installer/calamares/branding/sable/branding.desc"
+    "$project_root/installer/calamares/branding/sable/sable-mark.svg"
+    "$project_root/installer/calamares/modules/mount.conf"
+    "$project_root/installer/calamares/modules/unpackfs.conf"
+    "$project_root/installer/finalize-install"
+    "$project_root/installer/install-limine"
+    "$project_root/installer/installer-preflight"
+    "$project_root/installer/launch-installer"
+    "$project_root/dev-image/rootfs/etc/greetd/config.toml"
+    "$project_root/dev-image/rootfs/etc/greetd/hyprland.conf"
+    "$project_root/dev-image/rootfs/etc/greetd/regreet.toml"
+    "$project_root/dev-image/rootfs/etc/greetd/regreet.css"
+    "$project_root/dev-image/rootfs/etc/systemd/system/sable-installed-greeter-ready.service"
+    "$project_root/dev-image/rootfs/usr/local/bin/sable-installed-greeter-ready"
+    "$project_root/dev-image/rootfs/usr/local/bin/sable-session"
+    "$project_root/dev-image/rootfs/usr/share/wayland-sessions/sable.desktop"
+)
+
+for required_file in "${required_files[@]}"; do
+    [[ -s "$required_file" ]] || {
+        printf 'missing installer asset: %s\n' "$required_file" >&2
+        exit 1
+    }
+done
+
+for required_step in partition mount unpackfs users initcpio umount; do
+    grep -Eq "^[[:space:]]+- ${required_step}$" "$settings" || {
+        printf 'installer sequence is missing step: %s\n' "$required_step" >&2
+        exit 1
+    }
+done
+
+for instance_step in sable_preflight sable_finalize sable_limine; do
+    grep -Eq "^[[:space:]]+- shellprocess@${instance_step}$" "$settings" || {
+        printf 'installer sequence is missing shellprocess instance: %s\n' \
+            "$instance_step" >&2
+        exit 1
+    }
+done
+
+grep -q '^enableLuksAutomatedPartitioning: false$' \
+    "$project_root/installer/calamares/modules/partition.conf"
+grep -q 'subvolume: /@home$' \
+    "$project_root/installer/calamares/modules/mount.conf"
+grep -q 'systemd-detect-virt --vm' \
+    "$project_root/installer/installer-preflight"
+grep -q 'sudo --preserve-env=' \
+    "$project_root/installer/launch-installer"
+grep -q 'source: /run/sable-live-root$' \
+    "$project_root/installer/calamares/modules/unpackfs.conf"
+grep -Fq 'mount --bind / ' \
+    "$project_root/installer/launch-installer"
+grep -q 'EFI/BOOT/BOOTX64.EFI' \
+    "$project_root/installer/install-limine"
+grep -Eq '^[[:space:]]+jq$' \
+    "$project_root/scripts/build-dev-image-root"
+grep -Eq '^[[:space:]]+greetd$' \
+    "$project_root/scripts/build-dev-image-root"
+grep -Eq '^[[:space:]]+greetd-regreet$' \
+    "$project_root/scripts/build-dev-image-root"
+grep -q 'systemctl enable' "$project_root/installer/finalize-install"
+grep -q 'greetd.service' "$project_root/installer/finalize-install"
+grep -q 'sable-installed-greeter-ready.service' \
+    "$project_root/installer/finalize-install"
+grep -q 'user = "greeter"' \
+    "$project_root/dev-image/rootfs/etc/greetd/config.toml"
+grep -q 'Exec=/usr/local/bin/sable-session' \
+    "$project_root/dev-image/rootfs/usr/share/wayland-sessions/sable.desktop"
+
+if "$project_root/installer/installer-preflight" >/dev/null 2>&1; then
+    printf 'installer preflight unexpectedly accepted the development host\n' >&2
+    exit 1
+fi
+
+if command -v identify >/dev/null 2>&1; then
+    dimensions="$(identify -format '%wx%h' "$wallpaper")"
+    [[ "$dimensions" == 1920x1080 ]] || {
+        printf 'unexpected wallpaper dimensions: %s\n' "$dimensions" >&2
+        exit 1
+    }
+fi
+
+printf 'Installer static safety checks passed.\n'

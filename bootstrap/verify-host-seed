@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+
+for command_name in jq pacman sha256sum; do
+    require_command "$command_name"
+done
+
+build_root="$(require_build_root)"
+provenance="$build_root/provenance/host-seed.json"
+[[ -f "$provenance" ]] || {
+    printf 'host seed provenance does not exist: %s\n' "$provenance" >&2
+    printf 'run bootstrap/capture-host-seed first\n' >&2
+    exit 1
+}
+
+jq -e '
+  .schema_version == 1 and
+  .purpose == "disposable-stage0-seed" and
+  (.seed_roots | length > 0) and
+  (.packages | length > 0) and
+  (.package_set_sha256 | test("^[0-9a-f]{64}$"))
+' "$provenance" >/dev/null || {
+    printf 'host seed provenance has an invalid schema\n' >&2
+    exit 1
+}
+
+changed=0
+while IFS=$'\t' read -r name expected_version; do
+    installed_version="$(pacman -Q "$name" 2>/dev/null | awk '{print $2}')" || {
+        printf 'seed package is no longer installed: %s\n' "$name" >&2
+        changed=1
+        continue
+    }
+    if [[ "$installed_version" != "$expected_version" ]]; then
+        printf 'seed package changed: %s expected=%s installed=%s\n' \
+            "$name" "$expected_version" "$installed_version" >&2
+        changed=1
+    fi
+done < <(jq -r '.packages[] | [.name, .version] | @tsv' "$provenance")
+
+actual_digest="$(
+    jq -r '.packages[] | "\(.name)=\(.version)"' "$provenance" |
+        sha256sum |
+        awk '{print $1}'
+)"
+expected_digest="$(jq -r '.package_set_sha256' "$provenance")"
+if [[ "$actual_digest" != "$expected_digest" ]]; then
+    printf 'host seed package-set digest is invalid\n' >&2
+    changed=1
+fi
+
+if ((changed != 0)); then
+    printf 'Host seed provenance no longer matches this machine.\n' >&2
+    exit 1
+fi
+
+printf 'Host seed provenance matches all %s recorded packages.\n' \
+    "$(jq '.packages | length' "$provenance")"

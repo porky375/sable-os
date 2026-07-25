@@ -4,10 +4,20 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 manifest="$script_dir/sources.toml"
+manifest_json="$script_dir/manifest-json"
 
-if grep -q 'PIN_' "$manifest" || grep -q 'status = "UNPINNED"' "$manifest"; then
-    printf 'stage-0 sources are not pinned; bootstrap is blocked\n' >&2
+jq_output="$("$manifest_json" "$manifest")"
+
+if [[ "$(jq -r '.status' <<<"$jq_output")" != "PINNED" ]]; then
+    printf 'stage-0 source manifest is not marked pinned\n' >&2
     exit 1
 fi
 
-printf 'Stage-0 source manifest is pinned.\n'
+component_count="$(jq '.component | length' <<<"$jq_output")"
+if ((component_count == 0)); then
+    printf 'stage-0 source manifest contains no components\n' >&2
+    exit 1
+fi
+
+printf 'Stage-0 source manifest is pinned (%s components).\n' \
+    "$component_count"

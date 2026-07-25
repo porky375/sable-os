@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+#
+# verify-security-defaults: assert a Sable root filesystem enforces the
+# hardened defaults documented in docs/SECURITY.md.
+#
+# Checks (against a mounted/extracted rootfs, read-only):
+#   * the root account is locked (no direct root login);
+#   * no SSH, web, file-sharing, or remote-desktop server unit is ENABLED
+#     (installing such a package is fine; enabling its service is not);
+#   * a host firewall service is enabled (firewalld or nftables);
+#   * AppArmor is enabled (apparmor.service);
+#   * pacman requires trusted signatures (SigLevel = Required, never Never).
+#
+# It pairs with verify-runtime-closure (independence) and
+# verify-repository-signatures (release trust) to cover the security posture.
+#
+# Usage:
+#   verify-security-defaults /path/to/rootfs
+#   verify-security-defaults selftest
+#
+# Exit: 0 clean, 1 violation/error, 2 usage.
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+
+# Server units that must never be enabled by default.
+FORBIDDEN_UNITS='sshd.service sshd.socket ssh.service httpd.service apache2.service nginx.service lighttpd.service smb.service smbd.service nmb.service nmbd.service nfs-server.service vsftpd.service proftpd.service pure-ftpd.service telnet.socket xinetd.service xrdp.service vnc.service tigervnc.service x0vncserver.service cockpit.socket rpcbind.service rpcbind.socket avahi-daemon.service'
+
+violations=0
+ENABLED=""
+
+violation() { printf '  VIOLATION: %s\n' "$1" >&2; violations=$((violations + 1)); }
+warn() { printf '  warning: %s\n' "$1" >&2; }
+
+# Enabled units = symlinks under etc/systemd/system/*.wants (what `systemctl
+# enable` creates). Dangling links still count. Prints basenames.
+compute_enabled() {
+    local root="$1"
+    ENABLED=""
+    [[ -d "$root/etc/systemd/system" ]] || return 0
+    ENABLED="$(find "$root/etc/systemd/system" -type l -printf '%f\n' 2>/dev/null | sort -u)"
+}
+
+unit_enabled() { grep -qxF "$1" <<<"$ENABLED"; }
+
+check_root_locked() {
+    local root="$1" shadow="$1/etc/shadow" line field
+    if [[ ! -r "$shadow" ]]; then
+        warn "cannot read $shadow; skipping root-lock check"
+        return
+    fi
+    line="$(awk -F: '$1 == "root" { print; exit }' "$shadow")"
+    if [[ -z "$line" ]]; then
+        violation "no root entry in /etc/shadow"
+        return
+    fi
+    field="$(cut -d: -f2 <<<"$line")"
+    case "$field" in
+        '*' | '!'*) : ;;  # locked / disabled — good
+        '') violation "root has an EMPTY password (any login accepted)" ;;
+        '$'*) violation "root has a usable password set (direct root login should be disabled)" ;;
+        *) warn "unrecognized root shadow field '$field'; review manually" ;;
+    esac
+}
+
+check_no_servers() {
+    local u
+    for u in $FORBIDDEN_UNITS; do
+        if unit_enabled "$u"; then
+            violation "network server enabled by default: $u"
+        fi
+    done
+}
+
+check_firewall() {
+    local root="$1" nft
+    if unit_enabled firewalld.service || unit_enabled nftables.service || unit_enabled ufw.service; then
+        if unit_enabled nftables.service; then
+            nft="$root/etc/nftables.conf"
+            if [[ -r "$nft" ]] && ! grep -qE 'policy[[:space:]]+drop' "$nft"; then
+                warn "nftables enabled but no 'policy drop' base chain found in $nft"
+            fi
+        fi
+    else
+        violation "no firewall service enabled (expected firewalld or nftables)"
+    fi
+}
+
+check_apparmor() {
+    if ! unit_enabled apparmor.service; then
+        violation "AppArmor is not enabled (apparmor.service)"
+    fi
+}
+
+check_pacman_siglevel() {
+    local conf="$1/etc/pacman.conf"
+    if [[ ! -r "$conf" ]]; then
+        warn "no /etc/pacman.conf in rootfs; skipping signature-policy check"
+        return
+    fi
+    if ! grep -qE '^[[:space:]]*SigLevel[[:space:]]*=.*Required' "$conf"; then
+        violation "pacman.conf does not require signatures (SigLevel Required)"
+    fi
+    if grep -qE '^[[:space:]]*SigLevel[[:space:]]*=.*Never' "$conf"; then
+        violation "pacman.conf disables signature checking somewhere (SigLevel Never)"
+    fi
+}
+
+run_all_checks() {
+    local root="$1"
+    compute_enabled "$root"
+    check_root_locked "$root"
+    check_no_servers "$root"
+    check_firewall "$root"
+    check_apparmor "$root"
+    check_pacman_siglevel "$root"
+}
+
+verify_rootfs() {
+    local root="$1"
+    root="$(readlink -m -- "$root")"
+    [[ -d "$root/etc" ]] || {
+        printf 'not a root filesystem: %s\n' "$root" >&2
+        exit 1
+    }
+    printf 'Verifying security defaults of %s\n' "$root"
+    run_all_checks "$root"
+
+    printf '\n'
+    if [[ "$violations" -gt 0 ]]; then
+        printf 'FAIL: %d security-default violation(s).\n' "$violations" >&2
+        exit 1
+    fi
+    printf 'PASS: rootfs enforces the documented security defaults.\n'
+}
+
+selftest() {
+    local status=0
+    _sd_tmp="$(mktemp -d)"
+    trap 'rm -rf -- "${_sd_tmp:-/nonexistent}"' EXIT
+    local tmp="$_sd_tmp"
+
+    # Build a hardened baseline, then break one thing per fixture.
+    make_root() {
+        local d="$1" rootpw="$2"; shift 2
+        mkdir -p "$d/etc/systemd/system/multi-user.target.wants" "$d/etc/systemd/system/sysinit.target.wants"
+        printf 'root:%s:19000:0:99999:7:::\n' "$rootpw" > "$d/etc/shadow"
+        printf '[options]\nSigLevel = Required DatabaseOptional TrustedOnly\nLocalFileSigLevel = Required\n' > "$d/etc/pacman.conf"
+        local u
+        for u in "$@"; do ln -sf "/usr/lib/systemd/system/$u" "$d/etc/systemd/system/multi-user.target.wants/$u"; done
+    }
+
+    make_root "$tmp/good"    '!'          firewalld.service apparmor.service NetworkManager.service
+    # shellcheck disable=SC2016  # literal shadow hash, not an expansion
+    make_root "$tmp/rootpw"  '$6$x$hash'  firewalld.service apparmor.service
+    make_root "$tmp/ssh"     '!'          firewalld.service apparmor.service sshd.service
+    make_root "$tmp/nofw"    '!'          apparmor.service
+    make_root "$tmp/noaa"    '!'          firewalld.service
+    make_root "$tmp/emptypw" ''           firewalld.service apparmor.service
+    make_root "$tmp/nosig"   '!'          firewalld.service apparmor.service
+    printf '[options]\nSigLevel = Never\n' > "$tmp/nosig/etc/pacman.conf"
+
+    check() {
+        local label="$1" want="$2" root="$3" before found
+        before="$violations"
+        run_all_checks "$root" >/dev/null 2>&1 || true
+        found=$((violations - before))
+        if [[ "$want" == zero && "$found" -eq 0 ]] || [[ "$want" == nonzero && "$found" -gt 0 ]]; then
+            printf '  selftest ok: %s (%d)\n' "$label" "$found"
+        else
+            printf '  selftest FAIL: %s expected %s got %d\n' "$label" "$want" "$found" >&2
+            status=1
+        fi
+    }
+
+    check "hardened baseline"        zero    "$tmp/good"
+    check "root has a password"      nonzero "$tmp/rootpw"
+    check "root empty password"      nonzero "$tmp/emptypw"
+    check "ssh server enabled"       nonzero "$tmp/ssh"
+    check "no firewall enabled"      nonzero "$tmp/nofw"
+    check "apparmor not enabled"     nonzero "$tmp/noaa"
+    check "unsigned pacman"          nonzero "$tmp/nosig"
+
+    violations=0
+    rm -rf -- "$tmp"; trap - EXIT
+    [[ "$status" -eq 0 ]] && printf 'verify-security-defaults selftest passed.\n'
+    return "$status"
+}
+
+case "${1:-}" in
+    '') printf 'usage: %s /path/to/rootfs | selftest\n' "$0" >&2; exit 2 ;;
+    selftest) selftest ;;
+    -h | --help | help) sed -n '3,22p' "$0" ;;
+    *) verify_rootfs "$1" ;;
+esac

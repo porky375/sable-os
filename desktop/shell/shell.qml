@@ -1,4 +1,6 @@
 import Quickshell
+import Quickshell.Hyprland
+import Quickshell.Wayland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -7,10 +9,51 @@ Scope {
     id: root
 
     property bool startMenuOpen: false
-    property var workspaces: [
-        { "id": "desktop-1", "name": "Desktop 1", "active": true },
-        { "id": "desktop-2", "name": "Desktop 2", "active": false }
+    property string appFilter: ""
+    property var pinnedApps: [
+        { "name": "Install Sable", "command": ["sable-installer"] },
+        { "name": "Browser", "command": ["firefox"] },
+        { "name": "Files", "command": ["thunar"] },
+        {
+            "name": "Network",
+            "command": ["kitty", "--class", "sable-network", "-e", "nmtui"]
+        },
+        {
+            "name": "Settings",
+            "command": ["qml6", "/usr/share/sable/settings/Main.qml"]
+        },
+        {
+            "name": "System",
+            "command": ["kitty", "--class", "sable-system", "-e", "btop"]
+        },
+        { "name": "Terminal", "command": ["kitty"] }
     ]
+
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            required property var modelData
+            screen: modelData
+            anchors {
+                top: true
+                left: true
+                right: true
+                bottom: true
+            }
+            color: "#101010"
+            WlrLayershell.layer: WlrLayer.Background
+            WlrLayershell.exclusionMode: ExclusionMode.Ignore
+
+            Image {
+                anchors.fill: parent
+                source: "file:///usr/share/backgrounds/sable/wallpaper.png"
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+            }
+        }
+    }
 
     Variants {
         model: Quickshell.screens
@@ -31,6 +74,8 @@ Scope {
             }
             implicitHeight: 46
             color: "transparent"
+            WlrLayershell.layer: WlrLayer.Top
+            WlrLayershell.exclusionMode: ExclusionMode.Auto
 
             Rectangle {
                 anchors.fill: parent
@@ -47,7 +92,7 @@ Scope {
 
                     ToolButton {
                         id: startButton
-                        text: "os"
+                        text: "S"
                         font.bold: true
                         font.pixelSize: 14
                         implicitWidth: 36
@@ -64,19 +109,21 @@ Scope {
                     }
 
                     Repeater {
-                        model: root.workspaces
+                        model: Hyprland.workspaces
 
                         ToolButton {
                             required property var modelData
-                            text: modelData.name
+                            text: modelData.name.startsWith("special:")
+                                ? modelData.name.substring(8)
+                                : "Desktop " + modelData.name
                             font.pixelSize: 12
-                            highlighted: modelData.active
+                            highlighted: modelData.focused
+                            visible: !modelData.name.startsWith("special:")
                             implicitHeight: 32
                             leftPadding: 11
                             rightPadding: 11
-                            onClicked: {
-                                // D-Bus activation is connected after the shell client lands.
-                            }
+                            onClicked: Hyprland.dispatch(
+                                "workspace " + modelData.name)
                         }
                     }
 
@@ -87,6 +134,7 @@ Scope {
                         implicitHeight: 32
                         ToolTip.visible: hovered
                         ToolTip.text: "New desktop"
+                        onClicked: Hyprland.dispatch("workspace empty")
                     }
 
                     Item {
@@ -94,11 +142,26 @@ Scope {
                     }
 
                     ToolButton {
-                        text: "0"
-                        implicitWidth: 34
+                        text: "MIN"
+                        font.pixelSize: 10
+                        implicitWidth: 42
                         implicitHeight: 32
                         ToolTip.visible: hovered
                         ToolTip.text: "Hidden windows"
+                        onClicked: Hyprland.dispatch(
+                            "togglespecialworkspace minimized")
+                    }
+
+                    ToolButton {
+                        text: "NET"
+                        font.pixelSize: 10
+                        implicitWidth: 42
+                        implicitHeight: 32
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Network"
+                        onClicked: Quickshell.execDetached(
+                            ["kitty", "--class", "sable-network",
+                             "-e", "nmtui"])
                     }
 
                     ToolButton {
@@ -108,6 +171,7 @@ Scope {
                         implicitHeight: 32
                         ToolTip.visible: hovered
                         ToolTip.text: "Sound"
+                        onClicked: Quickshell.execDetached(["pavucontrol"])
                     }
 
                     Label {
@@ -178,7 +242,8 @@ Scope {
 
                 TextField {
                     Layout.fillWidth: true
-                    placeholderText: "Search apps, settings, and files"
+                    placeholderText: "Search applications"
+                    onTextChanged: root.appFilter = text.trim().toLowerCase()
                 }
 
                 Label {
@@ -189,19 +254,25 @@ Scope {
 
                 GridLayout {
                     Layout.fillWidth: true
-                    columns: 4
+                    columns: 3
                     columnSpacing: 8
                     rowSpacing: 8
 
                     Repeater {
-                        model: ["Files", "Terminal", "Browser", "Settings",
-                                "Software", "Security", "Games", "System"]
+                        model: root.pinnedApps.filter(function(app) {
+                            return root.appFilter.length === 0 ||
+                                app.name.toLowerCase().includes(root.appFilter);
+                        })
 
                         ToolButton {
-                            required property string modelData
-                            text: modelData
-                            implicitWidth: 76
+                            required property var modelData
+                            text: modelData.name
+                            implicitWidth: 98
                             implicitHeight: 54
+                            onClicked: {
+                                Quickshell.execDetached(modelData.command);
+                                root.startMenuOpen = false;
+                            }
                         }
                     }
                 }
@@ -227,10 +298,27 @@ Scope {
 
                     ToolButton {
                         text: "Lock"
+                        onClicked: {
+                            Quickshell.execDetached(["hyprlock"]);
+                            root.startMenuOpen = false;
+                        }
+                    }
+
+                    ToolButton {
+                        text: "Sign out"
+                        onClicked: Hyprland.dispatch("exit")
+                    }
+
+                    ToolButton {
+                        text: "Restart"
+                        onClicked: Quickshell.execDetached(
+                            ["systemctl", "reboot"])
                     }
 
                     ToolButton {
                         text: "Power"
+                        onClicked: Quickshell.execDetached(
+                            ["systemctl", "poweroff"])
                     }
                 }
             }

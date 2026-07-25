@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+
+for command_name in curl flock jq sha256sum stat; do
+    require_command "$command_name"
+done
+
+build_root="$(require_build_root)"
+manifest_json="$("$script_dir/manifest-json" "$script_dir/sources.toml")"
+cache_root="$build_root/sources/stage0"
+lock_file="$cache_root/sources.lock.json"
+mkdir -p -- "$cache_root"
+exec 9>"$cache_root/.fetch.lock"
+flock -x 9
+
+lock_temporary="$(mktemp "$cache_root/sources.lock.XXXXXX")"
+component_temporary=""
+cleanup() {
+    if [[ -n "$component_temporary" ]]; then
+        rm -f -- "$component_temporary"
+    fi
+    if [[ -n "$lock_temporary" ]]; then
+        rm -f -- "$lock_temporary"
+    fi
+}
+trap cleanup EXIT
+
+jq -n \
+    --arg generated_at "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" \
+    --arg architecture "$(jq -r '.architecture' <<<"$manifest_json")" \
+    '{schema_version: 1, generated_at: $generated_at,
+      architecture: $architecture, components: []}' >"$lock_temporary"
+
+while IFS=$'\t' read -r name source revision expected filename; do
+    archive="$cache_root/$filename"
+    partial="$archive.partial"
+
+    if [[ -f "$archive" ]]; then
+        actual="$(sha256sum "$archive" | awk '{print $1}')"
+        [[ "$actual" == "$expected" ]] || {
+            printf 'existing archive has the wrong SHA-256: %s\n' "$archive" >&2
+            printf 'expected %s\nactual   %s\n' "$expected" "$actual" >&2
+            exit 1
+        }
+        printf 'Verified cached %s (%s).\n' "$name" "$revision"
+    else
+        printf 'Fetching %s (%s)...\n' "$name" "$revision"
+        curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --location \
+            --fail \
+            --retry 3 \
+            --retry-all-errors \
+            --continue-at - \
+            --output "$partial" \
+            "$source"
+        actual="$(sha256sum "$partial" | awk '{print $1}')"
+        [[ "$actual" == "$expected" ]] || {
+            printf 'downloaded archive has the wrong SHA-256: %s\n' "$partial" >&2
+            printf 'expected %s\nactual   %s\n' "$expected" "$actual" >&2
+            exit 1
+        }
+        mv -- "$partial" "$archive"
+        printf 'Published verified %s.\n' "$archive"
+    fi
+
+    component_temporary="$(mktemp "$cache_root/lock-component.XXXXXX")"
+    jq \
+        --arg name "$name" \
+        --arg source "$source" \
+        --arg revision "$revision" \
+        --arg sha256 "$expected" \
+        --arg filename "$filename" \
+        --argjson size "$(stat -c '%s' "$archive")" \
+        --arg verified_at "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" \
+        '.components += [{
+          name: $name, source: $source, revision: $revision,
+          sha256: $sha256, filename: $filename, size: $size,
+          verified_at: $verified_at
+        }]' "$lock_temporary" >"$component_temporary"
+    mv -- "$component_temporary" "$lock_temporary"
+    component_temporary=""
+done < <(
+    jq -r '.component[] |
+      [.name, .source, .revision, .sha256, .filename] | @tsv' \
+      <<<"$manifest_json"
+)
+
+mv -- "$lock_temporary" "$lock_file"
+lock_temporary=""
+printf 'Stage-0 source cache is complete.\n'
+printf 'Provenance lock: %s\n' "$lock_file"

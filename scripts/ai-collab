@@ -1,0 +1,397 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2016
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+ai_root="${SABLE_AI_ROOT:-$project_root/.sable-ai}"
+state_file="$ai_root/state.json"
+events_file="$ai_root/events.jsonl"
+lock_file="$ai_root/lock"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  ai-collab init
+  ai-collab register AGENT DISPLAY_NAME [MODEL]
+  ai-collab claim AGENT TASK SUMMARY SCOPE...
+  ai-collab note AGENT MESSAGE [TO_AGENT]
+  ai-collab handoff FROM_AGENT TO_AGENT TASK MESSAGE
+  ai-collab done AGENT TASK RESULT
+  ai-collab block AGENT TASK REASON
+  ai-collab release AGENT TASK NOTE
+  ai-collab status
+  ai-collab inbox AGENT
+  ai-collab context [AGENT]
+EOF
+}
+
+require_tools() {
+    for command_name in flock jq; do
+        command -v "$command_name" >/dev/null 2>&1 || {
+            printf 'required command is missing: %s\n' "$command_name" >&2
+            exit 1
+        }
+    done
+}
+
+timestamp() {
+    date --utc +'%Y-%m-%dT%H:%M:%SZ'
+}
+
+validate_id() {
+    local kind="$1"
+    local value="$2"
+    [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+        printf 'invalid %s ID: %s\n' "$kind" "$value" >&2
+        exit 1
+    }
+}
+
+normalize_scope() {
+    local scope="$1"
+    if [[ "$scope" == "*" ]]; then
+        printf '*\n'
+        return
+    fi
+    scope="${scope#./}"
+    scope="${scope%/}"
+    [[ -n "$scope" && "$scope" != /* && "$scope" != ".." &&
+        "$scope" != ../* && "$scope" != */../* && "$scope" != */.. ]] || {
+        printf 'invalid repository scope: %s\n' "$1" >&2
+        exit 1
+    }
+    printf '%s\n' "$scope"
+}
+
+initialize_unlocked() {
+    local now temporary
+    mkdir -p -- "$ai_root"
+    now="$(timestamp)"
+    if [[ ! -f "$state_file" ]]; then
+        temporary="$(mktemp "$ai_root/state.XXXXXX")"
+        jq -n --arg now "$now" \
+            '{schema_version: 1, updated_at: $now, agents: [], tasks: []}' \
+            >"$temporary"
+        mv -f -- "$temporary" "$state_file"
+    fi
+    touch "$events_file"
+}
+
+lock_and_initialize() {
+    mkdir -p -- "$ai_root"
+    exec 9>"$lock_file"
+    flock -x 9
+    initialize_unlocked
+}
+
+append_event() {
+    local event_type="$1"
+    local actor="$2"
+    local task="$3"
+    local target="$4"
+    local message="$5"
+    local now
+    now="$(timestamp)"
+    jq -cn \
+        --arg at "$now" \
+        --arg type "$event_type" \
+        --arg actor "$actor" \
+        --arg task "$task" \
+        --arg target "$target" \
+        --arg message "$message" \
+        '{at: $at, type: $type, actor: $actor, task: $task,
+          target: (if $target == "" then null else $target end),
+          message: $message}' >>"$events_file"
+}
+
+replace_state() {
+    local filter="$1"
+    shift
+    local temporary
+    temporary="$(mktemp "$ai_root/state.XXXXXX")"
+    if ! jq "$@" "$filter" "$state_file" >"$temporary"; then
+        rm -f -- "$temporary"
+        return 1
+    fi
+    mv -f -- "$temporary" "$state_file"
+}
+
+agent_exists() {
+    local agent="$1"
+    jq -e --arg agent "$agent" \
+        '.agents | any(.id == $agent)' "$state_file" >/dev/null
+}
+
+require_agent() {
+    local agent="$1"
+    validate_id agent "$agent"
+    agent_exists "$agent" || {
+        printf 'agent is not registered: %s\n' "$agent" >&2
+        exit 1
+    }
+}
+
+require_owned_task() {
+    local agent="$1"
+    local task="$2"
+    local owner status
+    owner="$(jq -r --arg task "$task" \
+        '.tasks[] | select(.id == $task) | .owner // empty' "$state_file")"
+    status="$(jq -r --arg task "$task" \
+        '.tasks[] | select(.id == $task) | .status // empty' "$state_file")"
+    [[ "$status" == "claimed" && "$owner" == "$agent" ]] || {
+        printf 'task %s is not actively owned by %s\n' "$task" "$agent" >&2
+        exit 1
+    }
+}
+
+command_init() {
+    lock_and_initialize
+    printf 'AI collaboration state initialized at %s\n' "$ai_root"
+}
+
+command_register() {
+    [[ $# -ge 2 && $# -le 3 ]] || {
+        usage >&2
+        exit 1
+    }
+    local agent="$1"
+    local display_name="$2"
+    local model="${3:-}"
+    local now
+    validate_id agent "$agent"
+    lock_and_initialize
+    now="$(timestamp)"
+    replace_state \
+        '.updated_at = $now |
+         .agents = ([.agents[] | select(.id != $agent)] +
+           [{id: $agent, display_name: $display, model: $model,
+             registered_at: $now, last_seen_at: $now}])' \
+        --arg agent "$agent" --arg display "$display_name" \
+        --arg model "$model" --arg now "$now"
+    append_event register "$agent" "" "" "$display_name"
+    printf 'Registered %s.\n' "$agent"
+}
+
+command_claim() {
+    [[ $# -ge 4 ]] || {
+        usage >&2
+        exit 1
+    }
+    local agent="$1"
+    local task="$2"
+    local summary="$3"
+    shift 3
+    local now conflict scope existing_owner
+    local -a scopes=()
+    validate_id agent "$agent"
+    validate_id task "$task"
+    for scope in "$@"; do
+        scopes+=("$(normalize_scope "$scope")")
+    done
+    lock_and_initialize
+    require_agent "$agent"
+
+    local scopes_json
+    existing_owner="$(jq -r --arg task "$task" '
+      .tasks[] |
+      select(.id == $task and .status == "claimed") |
+      .owner // empty' "$state_file")"
+    if [[ -n "$existing_owner" && "$existing_owner" != "$agent" ]]; then
+        printf 'claim rejected: task %s is already owned by %s\n' \
+            "$task" "$existing_owner" >&2
+        exit 2
+    fi
+    scopes_json="$(printf '%s\n' "${scopes[@]}" | jq -Rsc 'split("\n")[:-1] | unique')"
+    conflict="$(jq -r --arg agent "$agent" --argjson requested "$scopes_json" '
+        def overlaps($a; $b):
+          $a == "*" or $b == "*" or $a == $b or
+          ($a | startswith($b + "/")) or
+          ($b | startswith($a + "/"));
+        [.tasks[]
+          | select(.status == "claimed" and .owner != $agent)
+          | . as $task
+          | $task.scopes[] as $held
+          | $requested[] as $wanted
+          | select(overlaps($held; $wanted))
+          | "\($task.id) owned by \($task.owner): \($held) conflicts with \($wanted)"
+        ] | first // empty' "$state_file")"
+    [[ -z "$conflict" ]] || {
+        printf 'claim rejected: %s\n' "$conflict" >&2
+        exit 2
+    }
+
+    now="$(timestamp)"
+    replace_state \
+        '.updated_at = $now |
+         .agents |= map(if .id == $agent then .last_seen_at = $now else . end) |
+         .tasks = ([.tasks[] | select(.id != $task)] +
+           [{id: $task, summary: $summary, status: "claimed", owner: $agent,
+             scopes: $scopes, updated_at: $now, result: null}])' \
+        --arg agent "$agent" --arg task "$task" --arg summary "$summary" \
+        --argjson scopes "$scopes_json" --arg now "$now"
+    append_event claim "$agent" "$task" "" "$summary"
+    printf 'Claimed %s for %s.\n' "$task" "$agent"
+}
+
+command_note() {
+    [[ $# -ge 2 && $# -le 3 ]] || {
+        usage >&2
+        exit 1
+    }
+    local agent="$1"
+    local message="$2"
+    local target="${3:-}"
+    lock_and_initialize
+    require_agent "$agent"
+    if [[ -n "$target" ]]; then
+        require_agent "$target"
+    fi
+    append_event note "$agent" "" "$target" "$message"
+    printf 'Note recorded.\n'
+}
+
+command_handoff() {
+    [[ $# -eq 4 ]] || {
+        usage >&2
+        exit 1
+    }
+    local from_agent="$1"
+    local to_agent="$2"
+    local task="$3"
+    local message="$4"
+    local now
+    lock_and_initialize
+    require_agent "$from_agent"
+    require_agent "$to_agent"
+    validate_id task "$task"
+    require_owned_task "$from_agent" "$task"
+    now="$(timestamp)"
+    replace_state \
+        '.updated_at = $now |
+         .agents |= map(if .id == $to then .last_seen_at = $now else . end) |
+         .tasks |= map(if .id == $task then
+           .owner = $to | .updated_at = $now
+         else . end)' \
+        --arg to "$to_agent" --arg task "$task" --arg now "$now"
+    append_event handoff "$from_agent" "$task" "$to_agent" "$message"
+    printf 'Handed %s from %s to %s.\n' "$task" "$from_agent" "$to_agent"
+}
+
+set_task_state() {
+    local status="$1"
+    local event_type="$2"
+    shift 2
+    [[ $# -eq 3 ]] || {
+        usage >&2
+        exit 1
+    }
+    local agent="$1"
+    local task="$2"
+    local message="$3"
+    local now
+    lock_and_initialize
+    require_agent "$agent"
+    validate_id task "$task"
+    require_owned_task "$agent" "$task"
+    now="$(timestamp)"
+    replace_state \
+        '.updated_at = $now |
+         .agents |= map(if .id == $agent then .last_seen_at = $now else . end) |
+         .tasks |= map(if .id == $task then
+           .status = $status |
+           .owner = (if $status == "available" then null else .owner end) |
+           .updated_at = $now | .result = $message
+         else . end)' \
+        --arg agent "$agent" --arg task "$task" --arg status "$status" \
+        --arg message "$message" --arg now "$now"
+    append_event "$event_type" "$agent" "$task" "" "$message"
+    printf 'Task %s is now %s.\n' "$task" "$status"
+}
+
+command_status() {
+    lock_and_initialize
+    jq -r '
+      "Agents:",
+      (if (.agents | length) == 0 then "  (none)"
+       else .agents[] | "  \(.id): \(.display_name) [\(.model)]" end),
+      "Tasks:",
+      (if (.tasks | length) == 0 then "  (none)"
+       else .tasks[] |
+         "  \(.id): \(.status), owner=\(.owner // "-")",
+         "    \(.summary)",
+         "    scopes: \(.scopes | join(", "))",
+         (if .result then "    result: \(.result)" else empty end)
+       end)' "$state_file"
+}
+
+command_inbox() {
+    [[ $# -eq 1 ]] || {
+        usage >&2
+        exit 1
+    }
+    local agent="$1"
+    lock_and_initialize
+    require_agent "$agent"
+    jq -r --arg agent "$agent" '
+      select(.target == null or .target == $agent or .actor == $agent) |
+      "[\(.at)] \(.type) from \(.actor)" +
+      (if .task != "" then " task=\(.task)" else "" end) +
+      (if .target then " to=\(.target)" else "" end) +
+      ": \(.message)"' "$events_file" | tail -n 50
+}
+
+command_context() {
+    [[ $# -le 1 ]] || {
+        usage >&2
+        exit 1
+    }
+    local agent="${1:-}"
+    lock_and_initialize
+    if [[ -n "$agent" ]]; then
+        require_agent "$agent"
+    fi
+    printf '# Sable AI Context\n\n'
+    printf 'Generated: %s\n' "$(timestamp)"
+    if [[ -n "$agent" ]]; then
+        printf 'Agent: %s\n' "$agent"
+    fi
+    printf '\n## Durable Handoff\n\n'
+    cat "$project_root/docs/AI_HANDOFF.md"
+    printf '\n## Live Workboard\n\n```json\n'
+    jq . "$state_file"
+    printf '```\n\n## Recent Events\n\n```jsonl\n'
+    tail -n 30 "$events_file"
+    printf '```\n\n## Git State\n\n```text\n'
+    git -C "$project_root" status --short
+    printf '```\n\n## Change Summary\n\n```text\n'
+    git -C "$project_root" diff --stat
+    printf '```\n'
+}
+
+require_tools
+command_name="${1:-}"
+if [[ -n "$command_name" ]]; then
+    shift
+fi
+
+case "$command_name" in
+    init) command_init "$@" ;;
+    register) command_register "$@" ;;
+    claim) command_claim "$@" ;;
+    note) command_note "$@" ;;
+    handoff) command_handoff "$@" ;;
+    'done') set_task_state completed 'done' "$@" ;;
+    block) set_task_state blocked block "$@" ;;
+    release) set_task_state available release "$@" ;;
+    status) command_status "$@" ;;
+    inbox) command_inbox "$@" ;;
+    context) command_context "$@" ;;
+    -h|--help|help) usage ;;
+    *)
+        usage >&2
+        exit 1
+        ;;
+esac
