@@ -9,6 +9,7 @@ Scope {
     id: root
 
     property bool startMenuOpen: false
+    property bool aiPanelOpen: false
     property string appFilter: ""
     property var pinnedApps: [
         { "name": "Install Sable", "command": ["sable-installer"] },
@@ -174,6 +175,17 @@ Scope {
                         onClicked: Quickshell.execDetached(["pavucontrol"])
                     }
 
+                    ToolButton {
+                        text: "AI"
+                        font.pixelSize: 10
+                        implicitWidth: 42
+                        implicitHeight: 32
+                        highlighted: root.aiPanelOpen
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Sable Assistant"
+                        onClicked: root.aiPanelOpen = !root.aiPanelOpen
+                    }
+
                     Label {
                         text: Qt.formatTime(new Date(), "HH:mm")
                         color: "#f4f4f5"
@@ -323,5 +335,9 @@ Scope {
                 }
             }
         }
+    }
+
+    AiPanel {
+        open: root.aiPanelOpen
     }
 }

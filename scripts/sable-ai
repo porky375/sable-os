@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""sable-ai — Sable's local AI assistant backend.
+
+A lean, Linux-native reimplementation of RiftAI's router + Ollama provider:
+it classifies a request, routes it to a local Ollama model, and streams the
+reply framed as a desktop-and-coding assistant. Runs entirely on-device via
+Ollama; nothing the user types leaves the machine (no telemetry, no cloud).
+
+Usage:
+  sable-ai "how do I list open ports?"          # one-shot, streams to stdout
+  echo "explain this error" | sable-ai          # prompt on stdin
+  sable-ai --history CHAT.json "and fix it"      # continue a conversation
+  sable-ai --check                               # verify Ollama + models
+  sable-ai --setup                               # pull the default models
+
+Config via env: SABLE_AI_OLLAMA_URL, SABLE_AI_MODEL, SABLE_AI_CODE_MODEL.
+Exit: 0 ok, 1 error (Ollama unreachable / model missing), 2 usage.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+OLLAMA_URL = os.environ.get("SABLE_AI_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+
+# Desktop + coding preamble (replaces RiftAI's game-dev preamble).
+SYSTEM_PREAMBLE = (
+    "You are Sable Assistant, the built-in helper for the Sable Linux desktop. "
+    "You run entirely on the user's own machine through a local model; nothing "
+    "they say leaves the device. Be a concise, practical desktop and coding "
+    "assistant: help with shell commands, Linux / Hyprland / Wayland usage, "
+    "system configuration, programming, debugging, code review, and clear "
+    "explanations. Prefer correct, copy-pasteable answers; when a command or a "
+    "snippet helps, show a short one and say what it does. Sable is a clean, "
+    "security-focused OS, so favour safe, unprivileged approaches and call out "
+    "anything that needs elevation or is destructive. If you are unsure, say so "
+    "briefly instead of inventing. Finish complete sentences; do not stop "
+    "mid-thought."
+)
+
+# RiftAI-style router: task kind -> model.
+MODELS = {
+    "code": os.environ.get("SABLE_AI_CODE_MODEL", "qwen2.5-coder:1.5b"),
+    "general": os.environ.get("SABLE_AI_MODEL", "llama3.2:1b"),
+}
+_CODE_HINTS = (
+    "code", "coding", "bug", "error", "traceback", "exception", "compile",
+    "function", "def ", "class ", "python", "rust", "cargo", "bash", "shell",
+    "script", "git ", "regex", "json", "yaml", "api", "sql", "docker", "systemd",
+    "config", "install", "package", "command", "terminal", "kernel", "nftables",
+)
+
+
+def classify(text: str) -> str:
+    lowered = text.lower()
+    return "code" if any(hint in lowered for hint in _CODE_HINTS) else "general"
+
+
+def pick_model(text: str, override: str | None) -> str:
+    return override or MODELS[classify(text)]
+
+
+def _get(path: str):
+    with urllib.request.urlopen(f"{OLLAMA_URL}{path}", timeout=10) as resp:
+        return json.load(resp)
+
+
+def available_models() -> list[str]:
+    try:
+        data = _get("/api/tags")
+    except (urllib.error.URLError, OSError):
+        return []
+    return [m.get("name", "") for m in data.get("models", [])]
+
+
+def stream_chat(messages: list[dict], model: str) -> int:
+    payload = json.dumps({"model": model, "messages": messages, "stream": True}).encode()
+    req = urllib.request.Request(
+        f"{OLLAMA_URL}/api/chat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            for raw in resp:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                obj = json.loads(raw)
+                if obj.get("error"):
+                    print(f"\n[sable-ai] ollama error: {obj['error']}", file=sys.stderr)
+                    return 1
+                chunk = obj.get("message", {}).get("content", "")
+                if chunk:
+                    sys.stdout.write(chunk)
+                    sys.stdout.flush()
+                if obj.get("done"):
+                    break
+        sys.stdout.write("\n")
+        return 0
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")
+        if "not found" in body.lower() or exc.code == 404:
+            print(
+                f"[sable-ai] model '{model}' is not installed. Run: sable-ai --setup"
+                f" (or: ollama pull {model})",
+                file=sys.stderr,
+            )
+        else:
+            print(f"[sable-ai] ollama HTTP {exc.code}: {body.strip()}", file=sys.stderr)
+        return 1
+    except (urllib.error.URLError, OSError) as exc:
+        print(
+            f"[sable-ai] cannot reach Ollama at {OLLAMA_URL}: {exc}. "
+            "Is ollama.service running?",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def cmd_check() -> int:
+    models = available_models()
+    if not models and not _reachable():
+        print(f"Ollama is not reachable at {OLLAMA_URL} (start ollama.service).")
+        return 1
+    print(f"Ollama OK at {OLLAMA_URL}. Installed models: {', '.join(models) or '(none)'}")
+    for kind, name in MODELS.items():
+        state = "ready" if any(name.split(":")[0] in m for m in models) else "missing (sable-ai --setup)"
+        print(f"  {kind:8} -> {name}  [{state}]")
+    return 0
+
+
+def _reachable() -> bool:
+    try:
+        _get("/api/tags")
+        return True
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def cmd_setup() -> int:
+    import subprocess
+
+    rc = 0
+    for name in dict.fromkeys(MODELS.values()):
+        print(f"[sable-ai] pulling {name} ...", file=sys.stderr)
+        if subprocess.call(["ollama", "pull", name]) != 0:
+            print(f"[sable-ai] failed to pull {name}", file=sys.stderr)
+            rc = 1
+    return rc
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="sable-ai", add_help=True)
+    parser.add_argument("prompt", nargs="*", help="the message (or read from stdin)")
+    parser.add_argument("--model", help="force a specific Ollama model")
+    parser.add_argument("--history", help="JSON file of prior [{role,content}] messages")
+    parser.add_argument("--check", action="store_true", help="verify Ollama and models")
+    parser.add_argument("--setup", action="store_true", help="pull the default models")
+    args = parser.parse_args()
+
+    if args.check:
+        return cmd_check()
+    if args.setup:
+        return cmd_setup()
+
+    prompt = " ".join(args.prompt).strip() or sys.stdin.read().strip()
+    if not prompt:
+        print("usage: sable-ai PROMPT   (or pipe text on stdin)", file=sys.stderr)
+        return 2
+
+    messages = [{"role": "system", "content": SYSTEM_PREAMBLE}]
+    if args.history and os.path.exists(args.history):
+        try:
+            prior = json.load(open(args.history, encoding="utf-8"))
+            messages += [m for m in prior if m.get("role") in ("user", "assistant")]
+        except (json.JSONDecodeError, OSError):
+            pass
+    messages.append({"role": "user", "content": prompt})
+
+    return stream_chat(messages, pick_model(prompt, args.model))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

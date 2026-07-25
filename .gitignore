@@ -11,3 +11,5 @@
 *.sig
 *.log
 *.tmp
+__pycache__/
+*.pyc

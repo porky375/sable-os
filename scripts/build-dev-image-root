@@ -187,6 +187,9 @@ packages=(
     wget
     iproute2
     inetutils
+    # local AI assistant: Ollama backend + python for the sable-ai router
+    ollama
+    python
 )
 
 install -d -m0700 "$mount_root/etc/pacman.d/gnupg"
@@ -212,6 +215,10 @@ install -Dm0755 "$project_root/target/release/sable-desktopd" \
     "$mount_root/usr/lib/sable/sable-desktopd"
 install -Dm0644 "$project_root/desktop/shell/shell.qml" \
     "$mount_root/usr/share/sable/shell/shell.qml"
+install -Dm0644 "$project_root/desktop/shell/AiPanel.qml" \
+    "$mount_root/usr/share/sable/shell/AiPanel.qml"
+install -Dm0755 "$project_root/scripts/sable-ai" \
+    "$mount_root/usr/local/bin/sable-ai"
 install -Dm0644 "$project_root/desktop/settings/Main.qml" \
     "$mount_root/usr/share/sable/settings/Main.qml"
 install -Dm0644 "$wallpaper" \
@@ -248,6 +255,7 @@ arch-chroot "$mount_root" systemctl enable systemd-resolved.service
 # at the resolved stub so DNS (web, downloads, pacman) actually works.
 ln -sf /run/systemd/resolve/stub-resolv.conf "$mount_root/etc/resolv.conf"
 arch-chroot "$mount_root" systemctl enable bluetooth.service
+arch-chroot "$mount_root" systemctl enable ollama.service
 arch-chroot "$mount_root" systemctl enable getty@tty1.service
 arch-chroot "$mount_root" systemctl set-default graphical.target
 install -d "$mount_root/etc/systemd/user/graphical-session.target.wants"
