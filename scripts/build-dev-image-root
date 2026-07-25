@@ -133,17 +133,17 @@ packages=(
     vulkan-icd-loader
     # hardware video acceleration (AMD VA-API ships in mesa; Intel needs its own driver)
     intel-media-driver
-    libva-utils
-    # audio + storage firmware/tools
+    # audio + storage firmware/tools (sof-firmware covers modern DSP audio;
+    # alsa-firmware is legacy ISA/PCI-era only and intentionally omitted)
     sof-firmware
-    alsa-firmware
     alsa-ucm-conf
     nvme-cli
     xdg-desktop-portal
     xdg-desktop-portal-hyprland
     xorg-xwayland
     polkit-kde-agent
-    firefox
+    # No web browser is baked in (lean image). curl/wget cover downloads; a
+    # browser (firefox, chromium, ...) is a one-command install on demand.
     hyprlock
     pavucontrol
     wdisplays
@@ -159,14 +159,12 @@ packages=(
     xdg-utils
     qt6-wayland
     xdg-desktop-portal-gtk
-    noto-fonts
     noto-fonts-emoji
     ttf-dejavu
     ttf-liberation
     xdg-user-dirs
     bash-completion
     man-db
-    man-pages
     openssh
     nano
     curl

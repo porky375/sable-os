@@ -13,7 +13,6 @@ Scope {
     property string appFilter: ""
     property var pinnedApps: [
         { "name": "Install Sable", "command": ["sable-installer"] },
-        { "name": "Browser", "command": ["firefox"] },
         { "name": "Files", "command": ["thunar"] },
         {
             "name": "Network",

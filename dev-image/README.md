@@ -9,9 +9,11 @@ built. The guest identifies itself as `Sable Bootstrap Preview`, and release
 tooling must never publish this image.
 
 The preview includes the versioned Sable wallpaper, a guarded Calamares
-installer, Firefox, Thunar, Kitty, NetworkManager, PipeWire, Bluetooth,
+installer, Thunar, Kitty, NetworkManager, PipeWire, Bluetooth,
 display and volume controls, screenshots, clipboard integration,
-notifications, a lock screen, archive support, and a system monitor. The
+notifications, a lock screen, archive support, and a system monitor. It
+ships lean: no web browser is baked in (install one on demand), and the AI
+assistant plus the security-core toolset remain available. The
 `sable` user's password is `sable`; graphical login is automatic and
 development sudo remains passwordless.
 

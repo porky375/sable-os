@@ -23,7 +23,6 @@ fi
 required_commands=(
     btop
     calamares
-    firefox
     grim
     hyprlock
     kitty
