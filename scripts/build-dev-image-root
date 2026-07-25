@@ -184,6 +184,7 @@ packages=(
     bind
     ripgrep
     nftables
+    apparmor
     wget
     iproute2
     inetutils
@@ -256,7 +257,11 @@ arch-chroot "$mount_root" systemctl enable systemd-resolved.service
 ln -sf /run/systemd/resolve/stub-resolv.conf "$mount_root/etc/resolv.conf"
 arch-chroot "$mount_root" systemctl enable bluetooth.service
 arch-chroot "$mount_root" systemctl enable ollama.service
+arch-chroot "$mount_root" systemctl enable nftables.service
+arch-chroot "$mount_root" systemctl enable apparmor.service
 arch-chroot "$mount_root" systemctl enable getty@tty1.service
+# harden: disable direct root login (admin access is the sable user + sudo)
+arch-chroot "$mount_root" usermod -L root || true
 arch-chroot "$mount_root" systemctl set-default graphical.target
 install -d "$mount_root/etc/systemd/user/graphical-session.target.wants"
 ln -sfn /etc/systemd/user/sable-desktopd.service \
