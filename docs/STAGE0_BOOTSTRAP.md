@@ -1,6 +1,6 @@
 # Stage-0 Bootstrap Audit
 
-Last updated: 2026-07-24
+Last updated: 2026-07-25
 
 Owner: `claude` (task `stage0-dependency-audit`, handed off by `codex`).
 
@@ -62,6 +62,28 @@ The shape of the closure:
 - **Base system libraries:** util-linux, kmod, libcap, libxcrypt.
 - **Crypto / TLS frontier:** openssl, libarchive, curl, nghttp2, and the gnupg
   stack (libgpg-error, libassuan, libgcrypt, libksba, npth, gnupg, gpgme).
+
+### Pinning progress (2026-07-25)
+
+The **toolchain phase is now fully pinned** — 11 of 11 components. Building on
+the four core inputs (binutils, gcc, glibc, linux-lts), the following transitive
+toolchain sources were pinned with immutable revisions and SHA-256 in
+[`bootstrap/sources.toml`](../bootstrap/sources.toml):
+
+- GCC math prerequisites: `gmp 6.3.0`, `mpfr 4.2.2`, `mpc 1.3.1`, `isl 0.27`.
+- Compression libraries: `zlib 1.3.1`, `zstd 1.5.7`, `xz 5.8.1`.
+
+`xz` is pinned at **5.8.1**, deliberately past the compromised 5.6.0/5.6.1 line
+(CVE-2024-3094); a security base must never seed from the backdoored release.
+The `gmp`, `mpc`, and `zlib` digests were cross-checked against their
+well-known published values.
+
+Manifest state: **13 pinned, 47 unpinned, 3 frontier** (`bootstrap/check-sources`
+and `bootstrap/check-dependencies` both pass). The remaining unpinned components
+are the `temp-tools` userland and the `chroot-base` phase (system libraries plus
+the crypto/TLS frontier). Signature verification (acceptance criterion 2) is the
+next layer to add to the fetch/verify tooling; today's pins rest on SHA-256 over
+TLS-authenticated upstreams.
 
 ### Expansion frontier
 

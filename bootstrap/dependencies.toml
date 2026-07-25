@@ -114,7 +114,7 @@ name = "gmp"
 phase = "toolchain"
 role = "toolchain-mathlib"
 upstream = "https://gmplib.org/"
-pinned = false
+pinned = true
 needed_by = ["gcc", "mpfr", "mpc"]
 note = "GCC prerequisite. Buildable in-tree but the source is still in-closure."
 
@@ -123,7 +123,7 @@ name = "mpfr"
 phase = "toolchain"
 role = "toolchain-mathlib"
 upstream = "https://www.mpfr.org/"
-pinned = false
+pinned = true
 needed_by = ["gcc", "mpc"]
 note = "Requires gmp."
 
@@ -132,7 +132,7 @@ name = "mpc"
 phase = "toolchain"
 role = "toolchain-mathlib"
 upstream = "https://www.multiprecision.org/mpc/"
-pinned = false
+pinned = true
 needed_by = ["gcc"]
 note = "Requires gmp and mpfr."
 
@@ -141,7 +141,7 @@ name = "isl"
 phase = "toolchain"
 role = "toolchain-mathlib"
 upstream = "https://libisl.sourceforge.io/"
-pinned = false
+pinned = true
 needed_by = ["gcc"]
 note = "Optional (Graphite loop optimizations); requires gmp. Pin or drop explicitly."
 
@@ -152,7 +152,7 @@ name = "zlib"
 phase = "toolchain"
 role = "compression-lib"
 upstream = "https://zlib.net/"
-pinned = false
+pinned = true
 needed_by = ["gcc", "elfutils", "libarchive", "curl", "linux-lts"]
 
 [[component]]
@@ -160,7 +160,7 @@ name = "zstd"
 phase = "toolchain"
 role = "compression-lib"
 upstream = "https://github.com/facebook/zstd"
-pinned = false
+pinned = true
 needed_by = ["gcc", "linux-lts", "libarchive", "pacman"]
 note = "GCC uses libzstd for LTO; kernel/pacman use it for compression."
 
@@ -169,7 +169,7 @@ name = "xz"
 phase = "toolchain"
 role = "compression-lib"
 upstream = "https://tukaani.org/xz/"
-pinned = false
+pinned = true
 needed_by = ["linux-lts", "libarchive"]
 note = "liblzma; also required to decompress .tar.xz source archives."
 

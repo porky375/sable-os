@@ -26,6 +26,54 @@ source = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.96.tar.xz"
 revision = "linux-6.12.96"
 sha256 = "7d2e1b5d5ab36b3a01856e71782dad2a54e634fb2b37c0a42998def3bbf957c1"
 
+# --- toolchain phase: GCC math prerequisites ---
+# Versions satisfy GCC 16's minimums; xz is 5.8.1, deliberately past the
+# compromised 5.6.0/5.6.1 line (CVE-2024-3094).
+
+[[component]]
+name = "gmp"
+source = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz"
+revision = "gmp-6.3.0"
+sha256 = "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+
+[[component]]
+name = "mpfr"
+source = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz"
+revision = "mpfr-4.2.2"
+sha256 = "b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01"
+
+[[component]]
+name = "mpc"
+source = "https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz"
+revision = "mpc-1.3.1"
+sha256 = "ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8"
+
+[[component]]
+name = "isl"
+source = "https://libisl.sourceforge.io/isl-0.27.tar.xz"
+revision = "isl-0.27"
+sha256 = "6d8babb59e7b672e8cb7870e874f3f7b813b6e00e6af3f8b04f7579965643d5c"
+
+# --- toolchain phase: compression libraries ---
+
+[[component]]
+name = "zlib"
+source = "https://zlib.net/fossils/zlib-1.3.1.tar.gz"
+revision = "zlib-1.3.1"
+sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
+
+[[component]]
+name = "zstd"
+source = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz"
+revision = "v1.5.7"
+sha256 = "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3"
+
+[[component]]
+name = "xz"
+source = "https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.xz"
+revision = "v5.8.1"
+sha256 = "0b54f79df85912504de0b14aec7971e3f964491af1812d83447005807513cd9e"
+
 [[component]]
 name = "systemd"
 source = "https://github.com/systemd/systemd/archive/refs/tags/v261.1.tar.gz"
