@@ -5,10 +5,12 @@ making changes.
 
 ## Non-Negotiable Invariants
 
-- `os_name` must not depend on Arch, CachyOS, or AUR repositories at runtime.
+- Sable must not depend on Arch, CachyOS, or AUR repositories at runtime.
 - Bootstrap inputs must be pinned, hashed, documented, and removed from the
   final repository closure.
 - Never partition, format, resize, or repair a physical disk from automation.
+- Build storage may format only a newly created regular image file after
+  confirming its parent filesystem is writable.
 - Installer storage tests run only against disposable image files.
 - Windows partitions are never resized automatically.
 - Packages and repository databases are signed before promotion.

@@ -1,0 +1,12 @@
+NAME="Sable"
+PRETTY_NAME="Sable Bootstrap Preview"
+ID=sable
+ID_LIKE=arch
+BUILD_ID=bootstrap
+ANSI_COLOR="1;37"
+HOME_URL="https://github.com/porky375/sable-os"
+DOCUMENTATION_URL="https://github.com/porky375/sable-os"
+SUPPORT_URL="https://github.com/porky375/sable-os/issues"
+BUG_REPORT_URL="https://github.com/porky375/sable-os/issues"
+LOGO=sable
+

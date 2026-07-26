@@ -15,7 +15,7 @@
 ## Destructive-Test Rule
 
 Automated installer tests must reject block devices and accept only regular
-files created inside `OS_NAME_BUILD_ROOT`. Test scripts verify the target with
+files created inside `SABLE_BUILD_ROOT`. Test scripts verify the target with
 `test -f`, `readlink -f`, and an allowed-root prefix before invoking partition
 tools.
 

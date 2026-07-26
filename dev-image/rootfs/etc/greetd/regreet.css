@@ -1,0 +1,46 @@
+* {
+    font-family: "Noto Sans";
+    letter-spacing: 0;
+}
+
+window {
+    color: #f4f4f5;
+    background-color: #101010;
+}
+
+button,
+entry,
+dropdown {
+    min-height: 38px;
+    color: #f4f4f5;
+    background-color: rgba(24, 24, 27, 0.92);
+    border: 1px solid #52525b;
+    border-radius: 4px;
+    box-shadow: none;
+    background-image: none;
+}
+
+button:hover,
+button:focus,
+entry:focus,
+dropdown:focus {
+    color: #101010;
+    background-color: #f4f4f5;
+    border-color: #f4f4f5;
+}
+
+button.suggested-action,
+button.destructive-action {
+    color: #f4f4f5;
+    background-color: rgba(24, 24, 27, 0.92);
+    border-color: #71717a;
+}
+
+button.suggested-action:hover,
+button.suggested-action:focus,
+button.destructive-action:hover,
+button.destructive-action:focus {
+    color: #101010;
+    background-color: #f4f4f5;
+    border-color: #f4f4f5;
+}

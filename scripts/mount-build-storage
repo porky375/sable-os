@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command blkid
+require_command findmnt
+require_command losetup
+require_command udisksctl
+
+image="${1:-}"
+[[ -n "$image" ]] || {
+    printf 'usage: %s /path/to/sable-build.ext4\n' "$0" >&2
+    exit 2
+}
+image="$(readlink -m -- "$image")"
+[[ -f "$image" && ! -L "$image" && ! -b "$image" ]] || {
+    printf 'build image must be a regular file: %s\n' "$image" >&2
+    exit 1
+}
+[[ "$(blkid -p -s TYPE -o value "$image" 2>/dev/null || true)" == "ext4" ]] || {
+    printf 'build image is not ext4: %s\n' "$image" >&2
+    exit 1
+}
+
+loop_device="$(losetup -j "$image" | awk -F: 'NR == 1 { print $1 }')"
+if [[ -z "$loop_device" ]]; then
+    loop_output="$(udisksctl loop-setup --file "$image")"
+    loop_device="$(sed -nE 's#.*(/dev/loop[0-9]+).*#\1#p' <<<"$loop_output")"
+fi
+[[ "$loop_device" =~ ^/dev/loop[0-9]+$ ]] || {
+    printf 'could not determine loop device for %s\n' "$image" >&2
+    exit 1
+}
+
+mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1 || true)"
+if [[ -z "$mount_point" ]]; then
+    udisksctl mount -b "$loop_device" >/dev/null
+    mount_point="$(findmnt -nr -S "$loop_device" -o TARGET | head -n1 || true)"
+fi
+
+mount_options="$(findmnt -nr -S "$loop_device" -o OPTIONS | head -n1 || true)"
+if [[ ",$mount_options," == *,ro,* ]]; then
+    printf 'build image mounted read-only (loop %s); detach it and retry\n' "$loop_device" >&2
+    exit 1
+fi
+[[ -n "$mount_point" && -d "$mount_point" && -w "$mount_point" ]] || {
+    printf 'mounted build filesystem is not writable\n' >&2
+    exit 1
+}
+
+"$script_dir/create-build-workspace" "$mount_point"
+touch "$mount_point/.sable-build-volume"
+printf 'SABLE_BUILD_ROOT=%s\n' "$mount_point"

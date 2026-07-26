@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command qemu-system-x86_64
+require_command socat
+build_root="$(require_build_root)"
+image="${1:-$build_root/images/sable-bootstrap.raw}"
+assert_regular_image_target "$image"
+
+test_root="$build_root/tmp/dev-image-test"
+serial_log="$build_root/logs/sable-bootstrap-serial.log"
+limine_shot="$build_root/images/sable-limine.ppm"
+desktop_shot="$build_root/images/sable-desktop.ppm"
+limine_png="$build_root/images/sable-limine.png"
+desktop_png="$build_root/images/sable-desktop.png"
+monitor_socket="$test_root/monitor.sock"
+pid_file="$test_root/qemu.pid"
+ovmf_vars="$test_root/OVMF_VARS.4m.fd"
+installer_target="$test_root/installer-target.raw"
+
+rm -rf -- "$test_root"
+mkdir -p -- "$test_root"
+rm -f -- "$serial_log" "$limine_shot" "$desktop_shot" \
+    "$limine_png" "$desktop_png"
+cp /usr/share/edk2/x64/OVMF_VARS.4m.fd "$ovmf_vars"
+truncate -s 32G "$installer_target"
+
+# Invoked by the EXIT trap.
+# shellcheck disable=SC2329
+cleanup() {
+    set +e
+    if [[ -f "$pid_file" ]]; then
+        pid="$(<"$pid_file")"
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+qemu-system-x86_64 \
+    -daemonize \
+    -pidfile "$pid_file" \
+    -name "Sable automated boot test" \
+    -machine q35,accel=kvm \
+    -cpu host \
+    -smp 4 \
+    -m 4G \
+    -display none \
+    -device virtio-vga \
+    -device virtio-rng-pci \
+    -device virtio-net-pci,netdev=net0 \
+    -netdev user,id=net0 \
+    -audiodev none,id=audio0 \
+    -device ich9-intel-hda \
+    -device hda-duplex,audiodev=audio0 \
+    -serial "file:$serial_log" \
+    -monitor "unix:$monitor_socket,server=on,wait=off" \
+    -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
+    -drive if=pflash,format=raw,file="$ovmf_vars" \
+    -drive if=virtio,format=raw,snapshot=on,file="$image" \
+    -drive if=virtio,format=raw,snapshot=on,file="$installer_target"
+
+for _ in {1..40}; do
+    [[ -S "$monitor_socket" ]] && break
+    sleep 0.25
+done
+[[ -S "$monitor_socket" ]] || {
+    printf 'QEMU monitor did not become available\n' >&2
+    exit 1
+}
+
+sleep 2
+printf 'screendump %s\n' "$limine_shot" | socat - UNIX-CONNECT:"$monitor_socket" >/dev/null
+
+for _ in {1..240}; do
+    if grep -q 'SABLE_GUI_READY' "$serial_log" 2>/dev/null &&
+        grep -q 'SABLE_FUNCTIONAL_READY' "$serial_log" 2>/dev/null; then
+        printf 'screendump %s\n' "$desktop_shot" | \
+            socat - UNIX-CONNECT:"$monitor_socket" >/dev/null
+        if command -v magick >/dev/null 2>&1; then
+            magick "$limine_shot" "$limine_png"
+            magick "$desktop_shot" "$desktop_png"
+        fi
+        printf 'Sable reached its functional graphical session.\n'
+        printf 'Limine screenshot: %s\nDesktop screenshot: %s\n' \
+            "$limine_shot" "$desktop_shot"
+        exit 0
+    fi
+    if grep -q 'SABLE_GUI_FAILED' "$serial_log" 2>/dev/null; then
+        printf 'the graphical session reported a failed component\n' >&2
+        tail -n 100 "$serial_log" >&2
+        exit 1
+    fi
+    if grep -q 'SABLE_FUNCTIONAL_FAILED' "$serial_log" 2>/dev/null; then
+        printf 'the graphical session failed its functional checks\n' >&2
+        tail -n 100 "$serial_log" >&2
+        exit 1
+    fi
+    if [[ ! -e "/proc/$(<"$pid_file")" ]]; then
+        printf 'QEMU exited before the graphical session was ready\n' >&2
+        tail -n 80 "$serial_log" >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+printf 'timed out waiting for functional graphical readiness\n' >&2
+tail -n 120 "$serial_log" >&2
+exit 1

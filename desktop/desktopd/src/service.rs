@@ -29,7 +29,7 @@ impl DesktopService {
     }
 }
 
-#[interface(name = "org.os_name.Desktop1")]
+#[interface(name = "org.sable.Desktop1")]
 impl DesktopService {
     async fn list_workspaces(&self) -> zbus::fdo::Result<String> {
         serde_json::to_string(&*self.state.read().await)

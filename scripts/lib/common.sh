@@ -26,9 +26,9 @@ require_command() {
 }
 
 require_build_root() {
-    local build_root="${OS_NAME_BUILD_ROOT:-}"
+    local build_root="${SABLE_BUILD_ROOT:-}"
     [[ -n "$build_root" ]] || {
-        printf 'OS_NAME_BUILD_ROOT is not set\n' >&2
+        printf 'SABLE_BUILD_ROOT is not set\n' >&2
         exit 1
     }
 
@@ -50,7 +50,7 @@ assert_regular_image_target() {
     target="$(readlink -m -- "$1")"
 
     [[ "$target" == "$allowed_root/"* ]] || {
-        printf 'target is outside OS_NAME_BUILD_ROOT: %s\n' "$target" >&2
+        printf 'target is outside SABLE_BUILD_ROOT: %s\n' "$target" >&2
         exit 1
     }
     [[ -f "$target" ]] || {

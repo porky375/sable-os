@@ -1,0 +1,16 @@
+[Unit]
+Description=Report readiness of the installed Sable greeter
+After=greetd.service
+Wants=greetd.service
+ConditionPathExists=/var/lib/sable/install-state
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sable-installed-greeter-ready
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=graphical.target

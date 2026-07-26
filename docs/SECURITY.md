@@ -20,7 +20,7 @@ Network, Web, Wireless, Forensics, and Password Audit packs are separate,
 signed metapackages. Their descriptions must state that they are for authorized
 systems and lab environments.
 
-`os_name` will not include anticheat bypasses, credential theft automation,
+Sable will not include anticheat bypasses, credential theft automation,
 silent persistence, or defaults that weaken host security.
 
 ## Release Keys

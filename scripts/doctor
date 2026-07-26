@@ -7,11 +7,13 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/lib/common.sh"
 load_project_env
 
-required=(bash git jq makepkg pacman repo-add rustc cargo)
-optional=(archiso mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak)
+required=(bash cargo curl expac flock git jq makepkg pacman pactree python3
+    repo-add rustc sha256sum)
+optional=(mkarchiso qemu-system-x86_64 qemu-img cmake shellcheck flatpak
+    arch-chroot limine magick pacstrap parted mkfs.btrfs mkfs.fat rsync socat)
 missing_required=0
 
-printf 'Project: %s %s (%s)\n' "$OS_PRETTY_NAME" "$OS_VERSION" "$OS_CHANNEL"
+printf 'Project: %s %s (%s)\n' "$SABLE_PRETTY_NAME" "$SABLE_VERSION" "$SABLE_CHANNEL"
 printf 'Host: %s / %s\n' "$(uname -sr)" "$(uname -m)"
 
 for command_name in "${required[@]}"; do
@@ -31,7 +33,7 @@ for command_name in "${optional[@]}"; do
     fi
 done
 
-if [[ -n "${OS_NAME_BUILD_ROOT:-}" ]]; then
+if [[ -n "${SABLE_BUILD_ROOT:-}" ]]; then
     build_root="$(require_build_root)"
     available_kib="$(df -Pk "$build_root" | awk 'NR == 2 { print $4 }')"
     printf 'Build root: %s (%s GiB available)\n' \

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+for _ in {1..60}; do
+    if systemctl is-active --quiet greetd.service &&
+        pgrep -x regreet >/dev/null; then
+        printf 'SABLE_GREETER_READY\n' >/dev/ttyS0 2>/dev/null || true
+        exit 0
+    fi
+    sleep 1
+done
+
+printf 'SABLE_GREETER_FAILED\n' >/dev/ttyS0 2>/dev/null || true
+systemctl status greetd.service --no-pager >/dev/ttyS0 2>/dev/null || true
+pgrep -a -f 'greetd|regreet|Hyprland' >/dev/ttyS0 2>/dev/null || true
+exit 1

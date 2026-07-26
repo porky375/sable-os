@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+
+for command_name in expac flock jq pacman pactree sha256sum; do
+    require_command "$command_name"
+done
+
+build_root="$(require_build_root)"
+provenance_root="$build_root/provenance"
+output="$provenance_root/host-seed.json"
+mkdir -p -- "$provenance_root"
+exec 9>"$provenance_root/.host-seed.lock"
+flock -x 9
+
+seed_roots=(
+    base-devel
+    binutils
+    gcc
+    glibc
+    linux-api-headers
+    pacman
+    systemd
+)
+
+package_names="$(mktemp "$provenance_root/host-seed-packages.XXXXXX")"
+output_temporary="$(mktemp "$provenance_root/host-seed.XXXXXX")"
+package_temporary=""
+cleanup() {
+    rm -f -- "$package_names" "$output_temporary"
+    if [[ -n "$package_temporary" ]]; then
+        rm -f -- "$package_temporary"
+    fi
+}
+trap cleanup EXIT
+
+for seed in "${seed_roots[@]}"; do
+    pacman -Q "$seed" >/dev/null
+    pactree -u "$seed"
+done |
+    sed -E 's/[<>=].*$//' |
+    sort -u |
+    while IFS= read -r candidate; do
+        pacman -Q "$candidate" 2>/dev/null | awk '{print $1}' || true
+    done |
+    sort -u >"$package_names"
+
+host_id="$(
+    # /etc/os-release is root-owned and defined as shell-compatible data.
+    # shellcheck disable=SC1091
+    source /etc/os-release
+    printf '%s\n' "${ID:-unknown}"
+)"
+
+roots_json="$(printf '%s\n' "${seed_roots[@]}" |
+    jq -Rsc 'split("\n")[:-1]')"
+jq -n \
+    --arg generated_at "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" \
+    --arg host_id "$host_id" \
+    --arg host_arch "$(uname -m)" \
+    --arg host_kernel "$(uname -r)" \
+    --argjson seed_roots "$roots_json" \
+    '{schema_version: 1, purpose: "disposable-stage0-seed",
+      generated_at: $generated_at,
+      host: {id: $host_id, architecture: $host_arch, kernel: $host_kernel},
+      seed_roots: $seed_roots, package_set_sha256: null, packages: []}' \
+    >"$output_temporary"
+
+while IFS= read -r requested_name; do
+    IFS=$'\t' read -r name version architecture build_epoch packager \
+        validation install_reason < <(
+        expac --timefmt=%s -Q \
+            '%n\t%v\t%a\t%b\t%p\t%V\t%w' "$requested_name"
+    )
+    [[ "$name" == "$requested_name" && "$build_epoch" =~ ^[0-9]+$ ]] || {
+        printf 'could not capture package metadata for %s\n' \
+            "$requested_name" >&2
+        exit 1
+    }
+    package_temporary="$(mktemp "$provenance_root/host-seed-entry.XXXXXX")"
+    jq \
+        --arg name "$name" \
+        --arg version "$version" \
+        --arg architecture "$architecture" \
+        --argjson build_epoch "$build_epoch" \
+        --arg packager "$packager" \
+        --arg validation "$validation" \
+        --arg install_reason "$install_reason" \
+        '.packages += [{
+          name: $name, version: $version, architecture: $architecture,
+          build_epoch: $build_epoch, packager: $packager,
+          validation: $validation, install_reason: $install_reason
+        }]' "$output_temporary" >"$package_temporary"
+    mv -- "$package_temporary" "$output_temporary"
+    package_temporary=""
+done <"$package_names"
+
+package_set_sha256="$(
+    jq -r '.packages[] | "\(.name)=\(.version)"' "$output_temporary" |
+        sha256sum |
+        awk '{print $1}'
+)"
+package_temporary="$(mktemp "$provenance_root/host-seed-final.XXXXXX")"
+jq --arg digest "$package_set_sha256" \
+    '.package_set_sha256 = $digest' \
+    "$output_temporary" >"$package_temporary"
+mv -- "$package_temporary" "$output"
+package_temporary=""
+
+printf 'Captured %s host seed packages.\n' \
+    "$(jq '.packages | length' "$output")"
+printf 'Host seed provenance: %s\n' "$output"

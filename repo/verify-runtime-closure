@@ -1,34 +1,341 @@
 #!/usr/bin/env bash
+#
+# verify-runtime-closure: prove an installed Sable root is free of parent
+# distributions.
+#
+# Enforces the core invariant (AGENTS.md, docs/PACKAGING.md): a Sable runtime
+# must have no Arch, CachyOS, AUR, or other parent-distribution repository
+# configured, no foreign package server, and no parent-distribution
+# keyring/mirrorlist/AUR-helper package installed.
+#
+# The primary gate is an allowlist:
+#   * every pacman repository section must be named "<sable-id>-*", and
+#   * every Server host must be the configured Sable repository host
+#     (file:// local servers are allowed for offline/build roots).
+# A parent-distribution denylist of repo names, host patterns, and package
+# names is kept only to produce specific diagnostics.
+#
+# Usage:
+#   verify-runtime-closure /path/to/rootfs   verify an installed root filesystem
+#   verify-runtime-closure selftest          run the built-in fixtures
+#
+# Exit: 0 clean, 1 violation or IO error, 2 usage error.
 
 set -euo pipefail
 
-root="${1:-}"
-[[ -n "$root" ]] || {
-    printf 'usage: %s /path/to/rootfs\n' "$0" >&2
-    exit 2
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+load_project_env
+
+repo_prefix="${SABLE_ID}-"
+sable_host="${SABLE_REPO_BASE_URL#*://}"
+sable_host="${sable_host%%/*}"
+
+# Parent-distribution signals, used for specific diagnostics only. The original
+# foundation check used this exact forbidden repo set; it is preserved and the
+# allowlist below generalizes it.
+forbidden_repo_re='^(core|extra|multilib|multilib-testing|testing|staging|core-testing|core-staging|extra-testing|extra-staging|community|community-testing|gnome-unstable|kde-unstable|cachyos|cachyos-v[0-9]+|cachyos-core-v[0-9]+|cachyos-extra-v[0-9]+|chaotic-aur|endeavouros|aur)$'
+forbidden_host_re='archlinux\.org|pkgbuild\.com|cachyos|chaotic|endeavouros|aur\.'
+forbidden_packages='archlinux-keyring archlinux-mirrorlist archlinuxcn-keyring cachyos-keyring cachyos-mirrorlist cachyos-settings cachyos-v3-mirrorlist chaotic-keyring chaotic-mirrorlist endeavouros-keyring endeavouros-mirrorlist yay paru pikaur aurutils'
+
+violations=0
+
+violation() {
+    printf '  VIOLATION: %s\n' "$1" >&2
+    violations=$((violations + 1))
 }
-root="$(readlink -m -- "$root")"
-[[ -d "$root/etc" ]] || {
-    printf 'not a root filesystem: %s\n' "$root" >&2
-    exit 1
+
+warn() {
+    printf '  warning: %s\n' "$1" >&2
 }
 
-pacman_conf="$root/etc/pacman.conf"
-[[ -f "$pacman_conf" ]] || {
-    printf 'missing pacman configuration\n' >&2
-    exit 1
+host_of() {
+    local url="$1" scheme rest
+    if [[ "$url" != *"://"* ]]; then
+        printf '\n'
+        return
+    fi
+    scheme="${url%%://*}"
+    if [[ "$scheme" == "file" ]]; then
+        printf 'file\n'
+        return
+    fi
+    rest="${url#*://}"
+    printf '%s\n' "${rest%%/*}"
 }
 
-forbidden='^\[(core|extra|multilib|cachyos|cachyos-v[0-9]+|chaotic-aur)\]$'
-if grep -Eq "$forbidden" "$pacman_conf"; then
-    printf 'parent-distribution repository found in %s\n' "$pacman_conf" >&2
-    exit 1
-fi
+check_repo_name() {
+    local repo="$1"
+    [[ "$repo" == "$repo_prefix"* ]] && return
+    if [[ "$repo" =~ $forbidden_repo_re ]]; then
+        violation "parent-distribution repository configured: [$repo]"
+    else
+        violation "non-Sable repository configured: [$repo] (expected ${repo_prefix}* only)"
+    fi
+}
 
-if find "$root/etc/pacman.d" -type f -maxdepth 2 -print0 2>/dev/null |
-    xargs -0r grep -Eiq 'archlinux|cachyos|aur'; then
-    printf 'parent-distribution mirror configuration found\n' >&2
-    exit 1
-fi
+check_server_url() {
+    local repo="$1" url="$2" host
+    host="$(host_of "$url")"
+    if [[ "$host" == "file" ]]; then
+        warn "[$repo] uses a local file:// server ($url)"
+        return
+    fi
+    if [[ -z "$host" ]]; then
+        violation "[$repo] Server has no resolvable host: $url"
+        return
+    fi
+    if [[ "$host" == "$sable_host" ]]; then
+        return
+    fi
+    if [[ "$host" =~ $forbidden_host_re ]]; then
+        violation "[$repo] parent-distribution server host: $host ($url)"
+    else
+        warn "[$repo] server host is outside the configured Sable closure: $host ($url)"
+    fi
+}
 
-printf 'Runtime repository closure is independent.\n'
+# Parse a pacman.conf. Include paths are resolved under $root so a rootfs's
+# absolute Include (e.g. /etc/pacman.d/mirrorlist) maps to $root/etc/....
+verify_pacman_conf() {
+    local conf="$1" root="$2"
+    local section='' options_siglevel='' localfile_siglevel='' line stripped url path resolved
+    local repo_count=0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        stripped="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$stripped" || "$stripped" == \#* ]] && continue
+
+        if [[ "$stripped" =~ ^\[(.+)\]$ ]]; then
+            section="${BASH_REMATCH[1]}"
+            if [[ "$section" != "options" ]]; then
+                repo_count=$((repo_count + 1))
+                check_repo_name "$section"
+            fi
+            continue
+        fi
+
+        if [[ "$stripped" =~ ^Server[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+            url="${BASH_REMATCH[1]}"
+            url="${url%"${url##*[![:space:]]}"}"
+            [[ "$section" == "options" || -z "$section" ]] || check_server_url "$section" "$url"
+            continue
+        fi
+
+        if [[ "$stripped" =~ ^Include[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+            path="${BASH_REMATCH[1]}"
+            path="${path%"${path##*[![:space:]]}"}"
+            resolved="$path"
+            [[ "$path" == /* ]] && resolved="$root$path"
+            if [[ -r "$resolved" ]]; then
+                while IFS= read -r inc || [[ -n "$inc" ]]; do
+                    inc="${inc#"${inc%%[![:space:]]*}"}"
+                    [[ "$inc" =~ ^Server[[:space:]]*=[[:space:]]*(.+)$ ]] || continue
+                    url="${BASH_REMATCH[1]}"
+                    url="${url%"${url##*[![:space:]]}"}"
+                    check_server_url "$section (via $path)" "$url"
+                done < "$resolved"
+            else
+                warn "[$section] Include target not readable, cannot verify its mirrors: $resolved"
+            fi
+            continue
+        fi
+
+        if [[ "$stripped" =~ ^SigLevel[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+            if [[ "$section" == "options" ]]; then
+                options_siglevel="${BASH_REMATCH[1]}"
+            elif [[ "${BASH_REMATCH[1]}" == *Never* ]]; then
+                violation "[$section] disables signature checking (SigLevel = ${BASH_REMATCH[1]})"
+            fi
+            continue
+        fi
+
+        if [[ "$stripped" =~ ^LocalFileSigLevel[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+            localfile_siglevel="${BASH_REMATCH[1]}"
+            continue
+        fi
+    done < "$conf"
+
+    if [[ "$repo_count" -eq 0 ]]; then
+        violation "no package repository is configured"
+    fi
+    if [[ "$options_siglevel" != *Required* ]]; then
+        violation "[options] SigLevel must require signatures (found: ${options_siglevel:-unset})"
+    fi
+    if [[ -n "$localfile_siglevel" && "$localfile_siglevel" != *Required* ]]; then
+        violation "[options] LocalFileSigLevel weakens local signatures (found: $localfile_siglevel)"
+    fi
+}
+
+# Belt-and-braces scan of pacman.d for foreign references the parser might miss
+# (preserves the original foundation behavior).
+scan_pacman_d() {
+    local dir="$1" match
+    [[ -d "$dir" ]] || return
+    if match="$(grep -rIl -E "$forbidden_host_re" "$dir" 2>/dev/null)"; then
+        local file
+        while IFS= read -r file; do
+            [[ -n "$file" ]] && violation "parent-distribution reference in mirror config: $file"
+        done <<< "$match"
+    fi
+}
+
+# Check the installed package set for parent-distribution keyrings, mirrorlists,
+# and AUR helpers.
+verify_installed_packages() {
+    local localdb="$1" desc name denied
+    [[ -d "$localdb" ]] || {
+        warn "no local package database at $localdb; skipping install-set check"
+        return
+    }
+    while IFS= read -r desc; do
+        name="$(awk '/^%NAME%$/{getline; print; exit}' "$desc" 2>/dev/null)"
+        [[ -n "$name" ]] || continue
+        for denied in $forbidden_packages; do
+            [[ "$name" == "$denied" ]] &&
+                violation "parent-distribution package installed: $name"
+        done
+    done < <(find "$localdb" -maxdepth 2 -type f -name desc 2>/dev/null)
+}
+
+verify_rootfs() {
+    local root="$1" conf
+    root="$(readlink -m -- "$root")"
+    [[ -d "$root/etc" ]] || {
+        printf 'not a root filesystem: %s\n' "$root" >&2
+        exit 1
+    }
+    conf="$root/etc/pacman.conf"
+    [[ -f "$conf" ]] || {
+        printf 'missing pacman configuration: %s\n' "$conf" >&2
+        exit 1
+    }
+
+    printf 'Verifying runtime closure of %s\n' "$root"
+    verify_pacman_conf "$conf" "$root"
+    scan_pacman_d "$root/etc/pacman.d"
+    verify_installed_packages "$root/var/lib/pacman/local"
+
+    printf '\n'
+    if [[ "$violations" -gt 0 ]]; then
+        printf 'FAIL: %d runtime-closure violation(s) in %s\n' "$violations" "$root" >&2
+        exit 1
+    fi
+    printf 'Runtime repository closure is independent.\n'
+}
+
+selftest() {
+    local tmp status=0 before
+    tmp="$(mktemp -d)"
+    trap 'rm -rf -- "$tmp"' RETURN
+
+    make_root() {
+        local dir="$1"
+        mkdir -p "$dir/etc/pacman.d" "$dir/var/lib/pacman/local"
+    }
+    add_pkg() {
+        local dir="$1" pkg="$2"
+        mkdir -p "$dir/var/lib/pacman/local/$pkg-1-1"
+        printf '%%NAME%%\n%s\n' "$pkg" > "$dir/var/lib/pacman/local/$pkg-1-1/desc"
+    }
+
+    # clean root
+    make_root "$tmp/clean"
+    cat > "$tmp/clean/etc/pacman.conf" <<EOF
+[options]
+SigLevel = Required DatabaseOptional TrustedOnly
+LocalFileSigLevel = Required
+[${repo_prefix}core]
+Server = ${SABLE_REPO_BASE_URL}/testing/${repo_prefix}core/\$arch
+EOF
+    add_pkg "$tmp/clean" sable-base
+
+    # foreign repo section
+    make_root "$tmp/foreign_repo"
+    cat > "$tmp/foreign_repo/etc/pacman.conf" <<EOF
+[options]
+SigLevel = Required
+LocalFileSigLevel = Required
+[${repo_prefix}core]
+Server = ${SABLE_REPO_BASE_URL}/testing/${repo_prefix}core/\$arch
+[core]
+Server = https://geo.mirror.pkgbuild.com/core/os/\$arch
+EOF
+
+    # sable-named repo pointing at a foreign host
+    make_root "$tmp/foreign_host"
+    cat > "$tmp/foreign_host/etc/pacman.conf" <<EOF
+[options]
+SigLevel = Required
+LocalFileSigLevel = Required
+[${repo_prefix}core]
+Server = https://mirror.archlinux.org/core/os/\$arch
+EOF
+
+    # signature checking disabled
+    make_root "$tmp/unsigned"
+    cat > "$tmp/unsigned/etc/pacman.conf" <<EOF
+[options]
+SigLevel = Optional TrustAll
+[${repo_prefix}core]
+SigLevel = Never
+Server = ${SABLE_REPO_BASE_URL}/testing/${repo_prefix}core/\$arch
+EOF
+
+    # foreign package installed
+    make_root "$tmp/foreign_pkg"
+    cat > "$tmp/foreign_pkg/etc/pacman.conf" <<EOF
+[options]
+SigLevel = Required
+LocalFileSigLevel = Required
+[${repo_prefix}core]
+Server = ${SABLE_REPO_BASE_URL}/testing/${repo_prefix}core/\$arch
+EOF
+    add_pkg "$tmp/foreign_pkg" cachyos-keyring
+
+    check() {
+        local label="$1" want="$2" root="$3"
+        before="$violations"
+        verify_pacman_conf "$root/etc/pacman.conf" "$root" >/dev/null 2>&1 || true
+        scan_pacman_d "$root/etc/pacman.d" >/dev/null 2>&1 || true
+        verify_installed_packages "$root/var/lib/pacman/local" >/dev/null 2>&1 || true
+        local found=$((violations - before))
+        if [[ "$want" == "zero" && "$found" -eq 0 ]] ||
+            [[ "$want" == "nonzero" && "$found" -gt 0 ]]; then
+            printf '  selftest ok: %s (%d violations)\n' "$label" "$found"
+        else
+            printf '  selftest FAIL: %s expected %s, got %d\n' "$label" "$want" "$found" >&2
+            status=1
+        fi
+    }
+
+    check "clean root" zero "$tmp/clean"
+    check "foreign repo section" nonzero "$tmp/foreign_repo"
+    check "foreign server host" nonzero "$tmp/foreign_host"
+    check "signatures disabled" nonzero "$tmp/unsigned"
+    check "foreign package installed" nonzero "$tmp/foreign_pkg"
+
+    violations=0
+    if [[ "$status" -eq 0 ]]; then
+        printf 'verify-runtime-closure selftest passed.\n'
+    fi
+    return "$status"
+}
+
+case "${1:-}" in
+    '')
+        printf 'usage: %s /path/to/rootfs | selftest\n' "$0" >&2
+        exit 2
+        ;;
+    selftest)
+        selftest
+        ;;
+    -h | --help | help)
+        sed -n '3,23p' "$0"
+        ;;
+    *)
+        verify_rootfs "$1"
+        ;;
+esac

@@ -1,42 +1,386 @@
 schema_version = 1
 architecture = "x86_64"
-status = "UNPINNED"
-
-# This file intentionally blocks bootstrap work until every source is reviewed.
-# Replace each PIN_* value with an immutable upstream revision and SHA-256.
+status = "PINNED"
 
 [[component]]
 name = "binutils"
-source = "https://sourceware.org/git/binutils-gdb.git"
-revision = "PIN_BINUTILS_REVISION"
-sha256 = "PIN_BINUTILS_SHA256"
+source = "https://ftp.gnu.org/gnu/binutils/binutils-2.46.1.tar.xz"
+revision = "binutils-2.46.1"
+sha256 = "e127a709cba24c76de8936cb7083dd768f28cd37eb010492e2f19b71eb1294e4"
 
 [[component]]
 name = "gcc"
-source = "https://gcc.gnu.org/git/gcc.git"
-revision = "PIN_GCC_REVISION"
-sha256 = "PIN_GCC_SHA256"
+source = "https://ftp.gnu.org/gnu/gcc/gcc-16.1.0/gcc-16.1.0.tar.xz"
+revision = "gcc-16.1.0"
+sha256 = "50efb4d94c3397aff3b0d61a5abd748b4dd31d9d3f2ab7be05b171d36a510f79"
 
 [[component]]
 name = "glibc"
-source = "https://sourceware.org/git/glibc.git"
-revision = "PIN_GLIBC_REVISION"
-sha256 = "PIN_GLIBC_SHA256"
+source = "https://ftp.gnu.org/gnu/glibc/glibc-2.43.tar.gz"
+revision = "glibc-2.43"
+sha256 = "e1e622cbd635019090fa23260e5d9ec219b12f97ae7ae02f033d4ae42cf2c004"
 
 [[component]]
 name = "linux-lts"
-source = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
-revision = "PIN_LINUX_LTS_REVISION"
-sha256 = "PIN_LINUX_LTS_SHA256"
+source = "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.96.tar.xz"
+revision = "linux-6.12.96"
+sha256 = "7d2e1b5d5ab36b3a01856e71782dad2a54e634fb2b37c0a42998def3bbf957c1"
+
+# --- toolchain phase: GCC math prerequisites ---
+# Versions satisfy GCC 16's minimums; xz is 5.8.1, deliberately past the
+# compromised 5.6.0/5.6.1 line (CVE-2024-3094).
+
+[[component]]
+name = "gmp"
+source = "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz"
+revision = "gmp-6.3.0"
+sha256 = "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+
+[[component]]
+name = "mpfr"
+source = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz"
+revision = "mpfr-4.2.2"
+sha256 = "b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01"
+
+[[component]]
+name = "mpc"
+source = "https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz"
+revision = "mpc-1.3.1"
+sha256 = "ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8"
+
+[[component]]
+name = "isl"
+source = "https://libisl.sourceforge.io/isl-0.27.tar.xz"
+revision = "isl-0.27"
+sha256 = "6d8babb59e7b672e8cb7870e874f3f7b813b6e00e6af3f8b04f7579965643d5c"
+
+# --- toolchain phase: compression libraries ---
+
+[[component]]
+name = "zlib"
+source = "https://zlib.net/fossils/zlib-1.3.1.tar.gz"
+revision = "zlib-1.3.1"
+sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
+
+[[component]]
+name = "zstd"
+source = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz"
+revision = "v1.5.7"
+sha256 = "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3"
+
+[[component]]
+name = "xz"
+source = "https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.xz"
+revision = "v5.8.1"
+sha256 = "0b54f79df85912504de0b14aec7971e3f964491af1812d83447005807513cd9e"
 
 [[component]]
 name = "systemd"
-source = "https://github.com/systemd/systemd.git"
-revision = "PIN_SYSTEMD_REVISION"
-sha256 = "PIN_SYSTEMD_SHA256"
+source = "https://github.com/systemd/systemd/archive/refs/tags/v261.1.tar.gz"
+revision = "v261.1"
+sha256 = "f9b9da1103d1714703503d1746971ccbeeae945663ef3ede3b7348169b5df064"
 
 [[component]]
 name = "pacman"
-source = "https://gitlab.archlinux.org/pacman/pacman.git"
-revision = "PIN_PACMAN_REVISION"
-sha256 = "PIN_PACMAN_SHA256"
+source = "https://gitlab.archlinux.org/pacman/pacman/-/archive/v7.1.0/pacman-v7.1.0.tar.gz"
+revision = "v7.1.0"
+sha256 = "1090f680958a73dc1f443a1eb919bd2ad77b3caff38e92e9737dec100c647bc9"
+
+# --- temp-tools phase: core POSIX build userland ---
+# Versions match the host seed's current releases. GNU tarballs record the
+# canonical ftp.gnu.org URL; their SHA-256 was computed from a byte-identical
+# mirror (mirrors.kernel.org) when ftp.gnu.org rate-limited the fetch.
+
+[[component]]
+name = "make"
+source = "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz"
+revision = "make-4.4.1"
+sha256 = "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3"
+
+[[component]]
+name = "bash"
+source = "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz"
+revision = "bash-5.3"
+sha256 = "0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba"
+
+[[component]]
+name = "coreutils"
+source = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.11.tar.xz"
+revision = "coreutils-9.11"
+sha256 = "394024eda0a5955217ceda9cd1201e65dc8fa3aa29c2951135a49521d57c3cc3"
+
+[[component]]
+name = "sed"
+source = "https://ftp.gnu.org/gnu/sed/sed-4.10.tar.xz"
+revision = "sed-4.10"
+sha256 = "b8e72182b2ec96a3574e2998c47b7aaa64cc20ce000d8e9ac313cc07cecf28c7"
+
+[[component]]
+name = "gawk"
+source = "https://ftp.gnu.org/gnu/gawk/gawk-5.4.1.tar.xz"
+revision = "gawk-5.4.1"
+sha256 = "07f6f7342b7febe4313fc2c2542ad93d64fe20ad8717200109f105a826f5fd37"
+
+[[component]]
+name = "grep"
+source = "https://ftp.gnu.org/gnu/grep/grep-3.12.tar.xz"
+revision = "grep-3.12"
+sha256 = "2649b27c0e90e632eadcd757be06c6e9a4f48d941de51e7c0f83ff76408a07b9"
+
+[[component]]
+name = "diffutils"
+source = "https://ftp.gnu.org/gnu/diffutils/diffutils-3.12.tar.xz"
+revision = "diffutils-3.12"
+sha256 = "7c8b7f9fc8609141fdea9cece85249d308624391ff61dedaf528fcb337727dfd"
+
+[[component]]
+name = "findutils"
+source = "https://ftp.gnu.org/gnu/findutils/findutils-4.11.0.tar.xz"
+revision = "findutils-4.11.0"
+sha256 = "bfd19cb06cc71f3352d567e90284d8cdac02ac89774bbeadf0b533b0c11432fd"
+
+[[component]]
+name = "m4"
+source = "https://ftp.gnu.org/gnu/m4/m4-1.4.21.tar.xz"
+revision = "m4-1.4.21"
+sha256 = "f25c6ab51548a73a75558742fb031e0625d6485fe5f9155949d6486a2408ab66"
+
+[[component]]
+name = "autoconf"
+source = "https://ftp.gnu.org/gnu/autoconf/autoconf-2.73.tar.xz"
+revision = "autoconf-2.73"
+sha256 = "9fd672b1c8425fac2fa67fa0477b990987268b90ff36d5f016dae57be0d6b52e"
+
+[[component]]
+name = "automake"
+source = "https://ftp.gnu.org/gnu/automake/automake-1.18.1.tar.xz"
+revision = "automake-1.18.1"
+sha256 = "168aa363278351b89af56684448f525a5bce5079d0b6842bd910fdd3f1646887"
+
+[[component]]
+name = "libtool"
+source = "https://ftp.gnu.org/gnu/libtool/libtool-2.5.4.tar.xz"
+revision = "libtool-2.5.4"
+sha256 = "f81f5860666b0bc7d84baddefa60d1cb9fa6fceb2398cc3baca6afaa60266675"
+
+[[component]]
+name = "bison"
+source = "https://ftp.gnu.org/gnu/bison/bison-3.8.2.tar.xz"
+revision = "bison-3.8.2"
+sha256 = "9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2"
+
+[[component]]
+name = "flex"
+source = "https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz"
+revision = "v2.6.4"
+sha256 = "e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995"
+
+[[component]]
+name = "gperf"
+source = "https://ftp.gnu.org/gnu/gperf/gperf-3.3.tar.gz"
+revision = "gperf-3.3"
+sha256 = "fd87e0aba7e43ae054837afd6cd4db03a3f2693deb3619085e6ed9d8d9604ad8"
+
+[[component]]
+name = "texinfo"
+source = "https://ftp.gnu.org/gnu/texinfo/texinfo-7.3.tar.xz"
+revision = "texinfo-7.3"
+sha256 = "51f74eb0f51cfa9873b85264dfdd5d46e8957ec95b88f0fb762f63d9e164c72e"
+
+[[component]]
+name = "perl"
+source = "https://www.cpan.org/src/5.0/perl-5.42.2.tar.xz"
+revision = "perl-5.42.2"
+sha256 = "0a585eeb9e363c0f80482ddb3571625250c2c86aeb408853e8ea50805cfb14bb"
+
+[[component]]
+name = "python"
+source = "https://www.python.org/ftp/python/3.14.6/Python-3.14.6.tar.xz"
+revision = "v3.14.6"
+sha256 = "143b1dddefaec3bd2e21e3b839b34a2b7fb9842272883c576420d605e9f30c63"
+
+[[component]]
+name = "gettext"
+source = "https://ftp.gnu.org/gnu/gettext/gettext-0.26.tar.xz"
+revision = "gettext-0.26"
+sha256 = "d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00"
+
+[[component]]
+name = "pkgconf"
+source = "https://distfiles.ariadne.space/pkgconf/pkgconf-2.4.3.tar.xz"
+revision = "pkgconf-2.4.3"
+sha256 = "51203d99ed573fa7344bf07ca626f10c7cc094e0846ac4aa0023bd0c83c25a41"
+
+[[component]]
+name = "patch"
+source = "https://ftp.gnu.org/gnu/patch/patch-2.8.tar.xz"
+revision = "patch-2.8"
+sha256 = "f87cee69eec2b4fcbf60a396b030ad6aa3415f192aa5f7ee84cad5e11f7f5ae3"
+
+[[component]]
+name = "gzip"
+source = "https://ftp.gnu.org/gnu/gzip/gzip-1.14.tar.xz"
+revision = "gzip-1.14"
+sha256 = "01a7b881bd220bfdf615f97b8718f80bdfd3f6add385b993dcf6efd14e8c0ac6"
+
+[[component]]
+name = "tar"
+source = "https://ftp.gnu.org/gnu/tar/tar-1.35.tar.xz"
+revision = "tar-1.35"
+sha256 = "4d62ff37342ec7aed748535323930c7cf94acf71c3591882b26a7ea50f3edc16"
+
+[[component]]
+name = "file"
+source = "https://astron.com/pub/file/file-5.48.tar.gz"
+revision = "file-5.48"
+sha256 = "ed14656883b23a364b4057c05595d93252da9bc473d30106519519d0da141283"
+
+[[component]]
+name = "ncurses"
+source = "https://ftp.gnu.org/gnu/ncurses/ncurses-6.6.tar.gz"
+revision = "ncurses-6.6"
+sha256 = "355b4cbbed880b0381a04c46617b7656e362585d52e9cf84a67e2009b749ff11"
+
+[[component]]
+name = "readline"
+source = "https://ftp.gnu.org/gnu/readline/readline-8.3.tar.gz"
+revision = "readline-8.3"
+sha256 = "fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc"
+
+[[component]]
+name = "bzip2"
+source = "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz"
+revision = "bzip2-1.0.8"
+sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
+
+# --- chroot-base phase: build systems, kernel extras, system libs ---
+# Versions match the host seed's current releases. bc/cpio record the canonical
+# ftp.gnu.org URL (SHA-256 computed from a byte-identical kernel.org mirror).
+
+[[component]]
+name = "meson"
+source = "https://github.com/mesonbuild/meson/releases/download/1.11.2/meson-1.11.2.tar.gz"
+revision = "1.11.2"
+sha256 = "698feae069cef3ecd4d7aaf281d7df359bdfcf555a9a1564383d3b913fa8a736"
+
+[[component]]
+name = "ninja"
+source = "https://github.com/ninja-build/ninja/archive/refs/tags/v1.13.2.tar.gz"
+revision = "v1.13.2"
+sha256 = "974d6b2f4eeefa25625d34da3cb36bdcebe7fbce40f4c16ac0835fd1c0cbae17"
+
+[[component]]
+name = "bc"
+source = "https://ftp.gnu.org/gnu/bc/bc-1.08.2.tar.gz"
+revision = "bc-1.08.2"
+sha256 = "ae470fec429775653e042015edc928d07c8c3b2fc59765172a330d3d87785f86"
+
+[[component]]
+name = "cpio"
+source = "https://ftp.gnu.org/gnu/cpio/cpio-2.15.tar.gz"
+revision = "cpio-2.15"
+sha256 = "efa50ef983137eefc0a02fdb51509d624b5e3295c980aa127ceee4183455499e"
+
+[[component]]
+name = "elfutils"
+source = "https://sourceware.org/elfutils/ftp/0.195/elfutils-0.195.tar.bz2"
+revision = "elfutils-0.195"
+sha256 = "37629fdf7f1f3dc2818e138fca2b8094177d6c2d0f701d3bb650a561218dc026"
+
+[[component]]
+name = "util-linux"
+source = "https://mirrors.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.2.tar.xz"
+revision = "util-linux-2.42.2"
+sha256 = "03a05d3adf9602ef128f2da05b84b3205ce60c351e5737c0370f74000679ce8a"
+
+[[component]]
+name = "kmod"
+source = "https://mirrors.kernel.org/pub/linux/utils/kernel/kmod/kmod-34.2.tar.xz"
+revision = "kmod-34.2"
+sha256 = "5a5d5073070cc7e0c7a7a3c6ec2a0e1780850c8b47b3e3892226b93ffcb9cb54"
+
+[[component]]
+name = "libcap"
+source = "https://mirrors.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.xz"
+revision = "libcap-2.78"
+sha256 = "0d621e562fd932ccf67b9660fb018e468a683d7b827541df27813228c996bb11"
+
+[[component]]
+name = "libxcrypt"
+source = "https://github.com/besser82/libxcrypt/releases/download/v4.5.2/libxcrypt-4.5.2.tar.xz"
+revision = "v4.5.2"
+sha256 = "71513a31c01a428bccd5367a32fd95f115d6dac50fb5b60c779d5c7942aec071"
+
+[[component]]
+name = "openssl"
+source = "https://www.openssl.org/source/openssl-3.6.3.tar.gz"
+revision = "openssl-3.6.3"
+sha256 = "243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1"
+
+[[component]]
+name = "libarchive"
+source = "https://github.com/libarchive/libarchive/releases/download/v3.8.8/libarchive-3.8.8.tar.xz"
+revision = "v3.8.8"
+sha256 = "3873a88801da067d0528a989af06877710529d50ee8fe6f3970cbb4302efb918"
+
+[[component]]
+name = "nghttp2"
+source = "https://github.com/nghttp2/nghttp2/releases/download/v1.69.0/nghttp2-1.69.0.tar.xz"
+revision = "v1.69.0"
+sha256 = "1fb324b6ec2c56f6bde0658f4139ffd8209fa9e77ce98fd7a5f63af8d0e508ad"
+
+[[component]]
+name = "curl"
+source = "https://curl.se/download/curl-8.21.0.tar.xz"
+revision = "curl-8.21.0"
+sha256 = "aa1b66a70eace83dc624508745646c08ae561de512ab403adffb93ac87fc72e6"
+
+[[component]]
+name = "libgpg-error"
+source = "https://gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.61.tar.bz2"
+revision = "libgpg-error-1.61"
+sha256 = "7a85413f2bc354f4f8aa832b718af122e48965e9e0eb9012ee659c13c6385c93"
+
+[[component]]
+name = "libassuan"
+source = "https://gnupg.org/ftp/gcrypt/libassuan/libassuan-3.0.0.tar.bz2"
+revision = "libassuan-3.0.0"
+sha256 = "0b160cbb898b852c6c04314b9a63e90ca87501305ad72a58a010f808665bbaf6"
+
+[[component]]
+name = "libgcrypt"
+source = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.2.tar.bz2"
+revision = "libgcrypt-1.12.2"
+sha256 = "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e"
+
+[[component]]
+name = "libksba"
+source = "https://gnupg.org/ftp/gcrypt/libksba/libksba-1.8.0.tar.bz2"
+revision = "libksba-1.8.0"
+sha256 = "296b9db9095749f2aa104202d7ab7fd09ad10710e00780a709c9754b1a1d9292"
+
+[[component]]
+name = "npth"
+source = "https://gnupg.org/ftp/gcrypt/npth/npth-1.8.tar.bz2"
+revision = "npth-1.8"
+sha256 = "8bd24b4f23a3065d6e5b26e98aba9ce783ea4fd781069c1b35d149694e90ca3e"
+
+[[component]]
+name = "gnupg"
+source = "https://gnupg.org/ftp/gcrypt/gnupg/gnupg-2.4.9.tar.bz2"
+revision = "gnupg-2.4.9"
+sha256 = "dd17ab2e9a04fd79d39d853f599cbc852062ddb9ab52a4ddeb4176fd8b302964"
+
+[[component]]
+name = "gpgme"
+source = "https://gnupg.org/ftp/gcrypt/gpgme/gpgme-2.1.2.tar.bz2"
+revision = "gpgme-2.1.2"
+sha256 = "0687a95b299871c4141f507c0f740de6b429c9ac067d0fa4e062e3264df5fb77"
+
+# sqlite: gnupg's TOFU trust database (frontier-audit finding). Amalgamation
+# tarball; its own deps (readline, zlib) are already pinned.
+[[component]]
+name = "sqlite"
+source = "https://sqlite.org/2026/sqlite-autoconf-3530300.tar.gz"
+revision = "sqlite-3.53.3"
+sha256 = "c917d7db16648ec95f714974ace5e5dcf46b7dc70e26600a0a102a3141125db0"

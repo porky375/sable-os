@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Sable
+Comment=Sable desktop session
+Exec=/usr/local/bin/sable-session
+Type=Application
+DesktopNames=Hyprland;Sable

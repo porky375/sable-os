@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+dependencies="$script_dir/dependencies.toml"
+sources="$script_dir/sources.toml"
+
+command -v python3 >/dev/null 2>&1 || {
+    printf 'required command is missing: python3\n' >&2
+    exit 1
+}
+[[ -f "$dependencies" ]] || {
+    printf 'stage-0 dependency audit does not exist: %s\n' "$dependencies" >&2
+    exit 1
+}
+
+python3 - "$dependencies" "$sources" <<'PY'
+import pathlib
+import re
+import sys
+import tomllib
+import urllib.parse
+
+dependency_path = pathlib.Path(sys.argv[1])
+source_path = pathlib.Path(sys.argv[2])
+with dependency_path.open("rb") as dependency_file:
+    data = tomllib.load(dependency_file)
+with source_path.open("rb") as source_file:
+    source_data = tomllib.load(source_file)
+
+expected_top = {
+    "schema_version", "architecture", "status", "independence",
+    "phase", "component",
+}
+unknown_top = set(data) - expected_top
+missing_top = expected_top - set(data)
+if unknown_top or missing_top:
+    raise SystemExit(
+        f"invalid dependency manifest keys: "
+        f"unknown={sorted(unknown_top)} missing={sorted(missing_top)}"
+    )
+if data["schema_version"] != 1:
+    raise SystemExit("unsupported dependency manifest schema")
+if data["architecture"] != "x86_64":
+    raise SystemExit("dependency manifest architecture must be x86_64")
+if data["status"] not in {"DRAFT", "COMPLETE"}:
+    raise SystemExit("dependency status must be DRAFT or COMPLETE")
+if not isinstance(data["independence"], bool):
+    raise SystemExit("independence must be a boolean")
+
+phases = data["phase"]
+if not isinstance(phases, list) or not phases:
+    raise SystemExit("dependency manifest must contain phases")
+phase_keys = {"id", "order", "environment", "description"}
+phase_ids = []
+for phase in phases:
+    if set(phase) != phase_keys:
+        raise SystemExit(f"invalid keys for phase {phase.get('id', '?')}")
+    phase_id = phase["id"]
+    if not isinstance(phase_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", phase_id):
+        raise SystemExit(f"invalid phase ID: {phase_id!r}")
+    phase_ids.append(phase_id)
+if len(phase_ids) != len(set(phase_ids)):
+    raise SystemExit("dependency phase IDs must be unique")
+orders = [phase["order"] for phase in phases]
+if orders != list(range(len(phases))):
+    raise SystemExit("dependency phases must have contiguous build order")
+
+components = data["component"]
+if not isinstance(components, list) or not components:
+    raise SystemExit("dependency manifest must contain components")
+required_component = {"name", "phase", "role", "upstream", "pinned", "needed_by"}
+optional_component = {"note", "frontier"}
+names = []
+for component in components:
+    name = component.get("name", "?")
+    unknown = set(component) - required_component - optional_component
+    missing = required_component - set(component)
+    if unknown or missing:
+        raise SystemExit(
+            f"invalid keys for component {name}: "
+            f"unknown={sorted(unknown)} missing={sorted(missing)}"
+        )
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9+._-]*", name):
+        raise SystemExit(f"invalid component name: {name!r}")
+    names.append(name)
+    if component["phase"] not in phase_ids:
+        raise SystemExit(f"unknown phase for {name}: {component['phase']}")
+    if not isinstance(component["pinned"], bool):
+        raise SystemExit(f"pinned must be a boolean for {name}")
+    if not isinstance(component.get("frontier", False), bool):
+        raise SystemExit(f"frontier must be a boolean for {name}")
+    parsed = urllib.parse.urlparse(component["upstream"])
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise SystemExit(f"upstream must be HTTPS for {name}")
+    needed_by = component["needed_by"]
+    if (
+        not isinstance(needed_by, list)
+        or any(not isinstance(item, str) or not item for item in needed_by)
+    ):
+        raise SystemExit(f"needed_by must be a string list for {name}")
+
+if len(names) != len(set(names)):
+    raise SystemExit("dependency component names must be unique")
+known_references = set(names) | set(phase_ids)
+for component in components:
+    dangling = set(component["needed_by"]) - known_references
+    if dangling:
+        raise SystemExit(
+            f"dangling needed_by references for {component['name']}: "
+            f"{', '.join(sorted(dangling))}"
+        )
+
+source_names = {component["name"] for component in source_data["component"]}
+pinned_names = {component["name"] for component in components if component["pinned"]}
+if pinned_names != source_names:
+    raise SystemExit(
+        "pinned dependency names do not match sources.toml: "
+        f"dependencies_only={sorted(pinned_names - source_names)} "
+        f"sources_only={sorted(source_names - pinned_names)}"
+    )
+
+unpinned = [component["name"] for component in components if not component["pinned"]]
+frontier = [
+    component["name"] for component in components
+    if component.get("frontier", False)
+]
+if data["status"] == "COMPLETE":
+    if unpinned or frontier or not data["independence"]:
+        raise SystemExit(
+            "COMPLETE requires every dependency pinned, no frontier, "
+            "and independence=true"
+        )
+elif data["independence"]:
+    raise SystemExit("DRAFT dependency manifests cannot assert independence")
+
+print(
+    f"Stage-0 dependency audit is {data['status']} "
+    f"({len(components)} components, {len(unpinned)} unpinned, "
+    f"{len(frontier)} frontier)."
+)
+PY

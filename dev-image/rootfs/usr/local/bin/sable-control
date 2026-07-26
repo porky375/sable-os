@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+state_root="${XDG_CONFIG_HOME:-$HOME/.config}/sable"
+state_file="$state_root/appearance.conf"
+lock_file="$state_root/appearance.lock"
+mkdir -p -- "$state_root"
+exec 9>"$lock_file"
+flock -x 9
+
+read_value() {
+    local key="$1"
+    local fallback="$2"
+    local value=""
+    if [[ -f "$state_file" ]]; then
+        value="$(awk -F= -v key="$key" '$1 == key { print $2 }' \
+            "$state_file" | tail -n 1)"
+    fi
+    printf '%s\n' "${value:-$fallback}"
+}
+
+write_state() {
+    local opacity="$1"
+    local blur="$2"
+    local animations="$3"
+    local temporary
+    temporary="$(mktemp "$state_root/appearance.XXXXXX")"
+    printf 'opacity=%s\nblur=%s\nanimations=%s\n' \
+        "$opacity" "$blur" "$animations" >"$temporary"
+    mv -- "$temporary" "$state_file"
+}
+
+apply_state() {
+    local opacity blur animations
+    opacity="$(read_value opacity 0.97)"
+    blur="$(read_value blur 1)"
+    animations="$(read_value animations 1)"
+    hyprctl keyword decoration:active_opacity "$opacity" >/dev/null
+    hyprctl keyword decoration:inactive_opacity "$opacity" >/dev/null
+    hyprctl keyword decoration:blur:enabled "$blur" >/dev/null
+    hyprctl keyword animations:enabled "$animations" >/dev/null
+}
+
+command_name="${1:-apply}"
+case "$command_name" in
+    apply)
+        apply_state
+        ;;
+    get)
+        [[ $# -eq 2 ]] || exit 2
+        case "$2" in
+            opacity) read_value opacity 0.97 ;;
+            blur) read_value blur 1 ;;
+            animations) read_value animations 1 ;;
+            *) exit 2 ;;
+        esac
+        ;;
+    set)
+        [[ $# -eq 3 ]] || exit 2
+        opacity="$(read_value opacity 0.97)"
+        blur="$(read_value blur 1)"
+        animations="$(read_value animations 1)"
+        case "$2" in
+            opacity)
+                [[ "$3" =~ ^0\.(7[5-9]|[89][0-9])$|^1\.00$ ]] || exit 2
+                opacity="$3"
+                ;;
+            blur)
+                [[ "$3" == 0 || "$3" == 1 ]] || exit 2
+                blur="$3"
+                ;;
+            animations)
+                [[ "$3" == 0 || "$3" == 1 ]] || exit 2
+                animations="$3"
+                ;;
+            *)
+                exit 2
+                ;;
+        esac
+        write_state "$opacity" "$blur" "$animations"
+        apply_state
+        ;;
+    reset)
+        write_state 0.97 1 1
+        apply_state
+        ;;
+    *)
+        printf 'usage: %s [apply|get KEY|set KEY VALUE|reset]\n' "$0" >&2
+        exit 2
+        ;;
+esac

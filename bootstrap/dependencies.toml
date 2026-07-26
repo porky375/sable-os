@@ -1,0 +1,614 @@
+# Stage-0 transitive dependency audit
+#
+# Companion to bootstrap/sources.toml. sources.toml pins the six top-level
+# self-hosting *targets*; this file enumerates the transitive source and
+# build-dependency closure required to build those targets without the host
+# distribution in the final result.
+#
+# This file is an ENUMERATION, not a pinned manifest. It deliberately asserts
+# no independence and stores no hashes. Every component here must ultimately be
+# pinned with an immutable revision + SHA-256 (+ signature where upstream
+# publishes one) in one of:
+#   - bootstrap/sources.toml   for the toolchain phases, or
+#   - packages/<pkg>/PKGBUILD  for the chroot-base phase.
+#
+# See docs/STAGE0_BOOTSTRAP.md for the phase model, build order, and the
+# acceptance criteria that must pass before independence may be claimed.
+
+schema_version = 1
+architecture = "x86_64"
+status = "DRAFT"        # enumeration under review; not a verified closure
+independence = false    # this file never asserts an independent runtime
+
+# ---------------------------------------------------------------------------
+# Phases, in build order. Each phase builds only against the host seed (phase
+# "seed") or against artifacts produced by strictly earlier phases.
+# ---------------------------------------------------------------------------
+
+[[phase]]
+id = "seed"
+order = 0
+environment = "host"
+description = """
+Disposable Arch/CachyOS host toolchain. Produces stage-0 artifacts only and \
+must not appear in the final closure. Exact provenance is captured separately \
+by bootstrap/capture-host-seed (task host-seed-provenance)."""
+
+[[phase]]
+id = "toolchain"
+order = 1
+environment = "seed"
+description = """
+Two-pass self-hosting toolchain. Pass 1 builds binutils and a minimal C-only \
+gcc with the seed; the Linux API headers and glibc are installed; pass 2 \
+rebuilds binutils and gcc against the new glibc so the toolchain no longer \
+references the seed sysroot."""
+
+[[phase]]
+id = "temp-tools"
+order = 2
+environment = "toolchain"
+description = """
+Minimal POSIX userland built with the pass-2 toolchain: just enough to enter \
+a clean chroot with no seed binaries on PATH."""
+
+[[phase]]
+id = "chroot-base"
+order = 3
+environment = "chroot"
+description = """
+Independent base rebuilt as signed Sable packages inside a clean chroot via \
+makechrootpkg. systemd, pacman, and the crypto/TLS stack live here, not in \
+the toolchain phases; pulling their full closure into stage-0 is unnecessary \
+and explodes the graph."""
+
+# ---------------------------------------------------------------------------
+# Components. `pinned = true` means the source is already in sources.toml.
+# `phase` is the earliest phase that consumes the source. `frontier = true`
+# marks a component whose own transitive leaves still need a deeper audit
+# pass before its subtree can be called complete.
+# ---------------------------------------------------------------------------
+
+# --- toolchain: core ---
+
+[[component]]
+name = "binutils"
+phase = "toolchain"
+role = "toolchain-core"
+upstream = "https://sourceware.org/binutils/"
+pinned = true
+needed_by = ["gcc", "glibc", "linux-lts"]
+note = "Built in pass 1 (seed) and pass 2 (against new glibc)."
+
+[[component]]
+name = "gcc"
+phase = "toolchain"
+role = "toolchain-core"
+upstream = "https://gcc.gnu.org/"
+pinned = true
+needed_by = ["glibc", "temp-tools", "chroot-base"]
+note = "Pass 1 is C-only; pass 2 is the final native compiler."
+
+[[component]]
+name = "linux-lts"
+phase = "toolchain"
+role = "api-headers"
+upstream = "https://www.kernel.org/"
+pinned = true
+needed_by = ["glibc", "chroot-base"]
+note = "API headers are installed early; the kernel proper builds in chroot-base."
+
+[[component]]
+name = "glibc"
+phase = "toolchain"
+role = "toolchain-core"
+upstream = "https://www.gnu.org/software/libc/"
+pinned = true
+needed_by = ["gcc", "temp-tools", "chroot-base"]
+note = "Requires Linux API headers and the pass-1 toolchain."
+
+# --- toolchain: gcc math prerequisites ---
+
+[[component]]
+name = "gmp"
+phase = "toolchain"
+role = "toolchain-mathlib"
+upstream = "https://gmplib.org/"
+pinned = true
+needed_by = ["gcc", "mpfr", "mpc"]
+note = "GCC prerequisite. Buildable in-tree but the source is still in-closure."
+
+[[component]]
+name = "mpfr"
+phase = "toolchain"
+role = "toolchain-mathlib"
+upstream = "https://www.mpfr.org/"
+pinned = true
+needed_by = ["gcc", "mpc"]
+note = "Requires gmp."
+
+[[component]]
+name = "mpc"
+phase = "toolchain"
+role = "toolchain-mathlib"
+upstream = "https://www.multiprecision.org/mpc/"
+pinned = true
+needed_by = ["gcc"]
+note = "Requires gmp and mpfr."
+
+[[component]]
+name = "isl"
+phase = "toolchain"
+role = "toolchain-mathlib"
+upstream = "https://libisl.sourceforge.io/"
+pinned = true
+needed_by = ["gcc"]
+note = "Optional (Graphite loop optimizations); requires gmp. Pin or drop explicitly."
+
+# --- compression libraries (needed to unpack sources and by later targets) ---
+
+[[component]]
+name = "zlib"
+phase = "toolchain"
+role = "compression-lib"
+upstream = "https://zlib.net/"
+pinned = true
+needed_by = ["gcc", "elfutils", "libarchive", "curl", "linux-lts"]
+
+[[component]]
+name = "zstd"
+phase = "toolchain"
+role = "compression-lib"
+upstream = "https://github.com/facebook/zstd"
+pinned = true
+needed_by = ["gcc", "linux-lts", "libarchive", "pacman"]
+note = "GCC uses libzstd for LTO; kernel/pacman use it for compression."
+
+[[component]]
+name = "xz"
+phase = "toolchain"
+role = "compression-lib"
+upstream = "https://tukaani.org/xz/"
+pinned = true
+needed_by = ["linux-lts", "libarchive"]
+note = "liblzma; also required to decompress .tar.xz source archives."
+
+[[component]]
+name = "bzip2"
+phase = "temp-tools"
+role = "compression-lib"
+upstream = "https://sourceware.org/bzip2/"
+pinned = true
+needed_by = ["libarchive"]
+
+# --- temp-tools: core POSIX build userland ---
+
+[[component]]
+name = "make"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/make/"
+pinned = true
+needed_by = ["toolchain", "chroot-base"]
+
+[[component]]
+name = "bash"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/bash/"
+pinned = true
+needed_by = ["toolchain", "chroot-base"]
+
+[[component]]
+name = "coreutils"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/coreutils/"
+pinned = true
+needed_by = ["toolchain", "chroot-base"]
+
+[[component]]
+name = "sed"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/sed/"
+pinned = true
+needed_by = ["toolchain", "chroot-base"]
+
+[[component]]
+name = "gawk"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/gawk/"
+pinned = true
+needed_by = ["glibc", "chroot-base"]
+
+[[component]]
+name = "grep"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/grep/"
+pinned = true
+needed_by = ["toolchain", "chroot-base"]
+
+[[component]]
+name = "diffutils"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/diffutils/"
+pinned = true
+needed_by = ["toolchain"]
+
+[[component]]
+name = "findutils"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/findutils/"
+pinned = true
+needed_by = ["chroot-base"]
+
+[[component]]
+name = "m4"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/m4/"
+pinned = true
+needed_by = ["autoconf", "bison", "flex"]
+
+[[component]]
+name = "autoconf"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/autoconf/"
+pinned = true
+needed_by = ["automake", "libtool", "chroot-base"]
+note = "Required when a package recipe regenerates configure scripts."
+
+[[component]]
+name = "automake"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/automake/"
+pinned = true
+needed_by = ["chroot-base"]
+note = "Requires autoconf and Perl."
+
+[[component]]
+name = "libtool"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/libtool/"
+pinned = true
+needed_by = ["chroot-base"]
+note = "Requires autoconf, automake, m4, and file."
+
+[[component]]
+name = "bison"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/bison/"
+pinned = true
+needed_by = ["glibc", "linux-lts", "systemd"]
+note = "Requires m4."
+
+[[component]]
+name = "flex"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://github.com/westes/flex"
+pinned = true
+needed_by = ["linux-lts", "util-linux"]
+note = "Requires m4."
+
+[[component]]
+name = "gperf"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/gperf/"
+pinned = true
+needed_by = ["systemd", "kmod"]
+
+[[component]]
+name = "texinfo"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/texinfo/"
+pinned = true
+needed_by = ["binutils", "gcc"]
+note = "makeinfo for toolchain docs; can be stubbed but is normally in-closure."
+
+[[component]]
+name = "perl"
+phase = "temp-tools"
+role = "language-runtime"
+upstream = "https://www.perl.org/"
+pinned = true
+needed_by = ["glibc", "linux-lts", "openssl"]
+
+[[component]]
+name = "python"
+phase = "temp-tools"
+role = "language-runtime"
+upstream = "https://www.python.org/"
+pinned = true
+needed_by = ["glibc", "meson", "systemd", "linux-lts"]
+note = "CPython. Drives meson and several glibc/kernel build scripts."
+
+[[component]]
+name = "gettext"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/gettext/"
+pinned = true
+needed_by = ["chroot-base"]
+note = "i18n tooling required by many autotools configure scripts."
+
+[[component]]
+name = "pkgconf"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://github.com/pkgconf/pkgconf"
+pinned = true
+needed_by = ["systemd", "util-linux", "libarchive", "curl"]
+note = "Provides pkg-config."
+
+[[component]]
+name = "patch"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/patch/"
+pinned = true
+needed_by = ["chroot-base"]
+
+[[component]]
+name = "gzip"
+phase = "temp-tools"
+role = "compression-lib"
+upstream = "https://www.gnu.org/software/gzip/"
+pinned = true
+needed_by = ["chroot-base"]
+
+[[component]]
+name = "tar"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/tar/"
+pinned = true
+needed_by = ["toolchain", "chroot-base"]
+
+[[component]]
+name = "file"
+phase = "temp-tools"
+role = "build-tool"
+upstream = "https://www.darwinsys.com/file/"
+pinned = true
+needed_by = ["libtool", "chroot-base"]
+note = "libmagic; probed by many configure scripts."
+
+[[component]]
+name = "ncurses"
+phase = "temp-tools"
+role = "system-lib"
+upstream = "https://invisible-island.net/ncurses/"
+pinned = true
+needed_by = ["bash", "util-linux"]
+
+[[component]]
+name = "readline"
+phase = "temp-tools"
+role = "system-lib"
+upstream = "https://www.gnu.org/software/readline/"
+pinned = true
+needed_by = ["bash"]
+note = "Requires ncurses."
+
+# --- chroot-base: build systems ---
+
+[[component]]
+name = "meson"
+phase = "chroot-base"
+role = "build-system"
+upstream = "https://mesonbuild.com/"
+pinned = true
+needed_by = ["systemd", "pacman", "util-linux"]
+note = "Python package; also needs python-jinja for systemd code generation."
+
+[[component]]
+name = "ninja"
+phase = "chroot-base"
+role = "build-system"
+upstream = "https://ninja-build.org/"
+pinned = true
+needed_by = ["systemd", "pacman"]
+
+# --- chroot-base: kernel build extras ---
+
+[[component]]
+name = "bc"
+phase = "chroot-base"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/bc/"
+pinned = true
+needed_by = ["linux-lts"]
+
+[[component]]
+name = "cpio"
+phase = "chroot-base"
+role = "build-tool"
+upstream = "https://www.gnu.org/software/cpio/"
+pinned = true
+needed_by = ["linux-lts"]
+note = "Initramfs packaging."
+
+[[component]]
+name = "elfutils"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://sourceware.org/elfutils/"
+pinned = true
+needed_by = ["linux-lts"]
+note = "libelf for objtool / BTF generation."
+
+# --- chroot-base: system libraries ---
+
+[[component]]
+name = "util-linux"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://github.com/util-linux/util-linux"
+pinned = true
+needed_by = ["systemd"]
+note = "libmount / libblkid / libuuid; systemd hard-depends on libmount."
+
+[[component]]
+name = "kmod"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://github.com/kmod-project/kmod"
+pinned = true
+needed_by = ["linux-lts", "systemd"]
+note = "depmod at kernel install; libkmod for systemd."
+
+[[component]]
+name = "libcap"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://sites.google.com/site/fullycapable/"
+pinned = true
+needed_by = ["systemd"]
+
+[[component]]
+name = "libxcrypt"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://github.com/besser82/libxcrypt"
+pinned = true
+needed_by = ["systemd"]
+note = "libcrypt, split out of glibc."
+
+# --- chroot-base: crypto / TLS stack (frontier audit complete 2026-07-25) ---
+# Each subtree was audited against the host's real build. Sable builds a MINIMAL
+# base: only the pacman-critical deps are in-closure; heavier optional features
+# are disabled at configure time and recorded per component below.
+
+[[component]]
+name = "openssl"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://www.openssl.org/"
+pinned = true
+needed_by = ["linux-lts", "curl", "libarchive"]
+note = "Required deps (perl build-time, zlib, zstd) pinned. Optional brotli TLS cert compression is disabled."
+
+[[component]]
+name = "libarchive"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://www.libarchive.org/"
+pinned = true
+needed_by = ["pacman"]
+note = "Requires zlib, xz, bzip2, zstd, openssl."
+
+[[component]]
+name = "nghttp2"
+phase = "chroot-base"
+role = "tls"
+upstream = "https://nghttp2.org/"
+pinned = true
+needed_by = ["curl"]
+
+[[component]]
+name = "curl"
+phase = "chroot-base"
+role = "tls"
+upstream = "https://curl.se/"
+pinned = true
+needed_by = ["pacman"]
+note = "libcurl built TLS-only: openssl + zlib + nghttp2 + zstd (all pinned). Disabled: krb5, libidn2, libpsl, libssh2, HTTP/3 (ngtcp2/nghttp3), brotli. ca-certificates is runtime trust-store data (a package, not a source)."
+
+[[component]]
+name = "libgpg-error"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/software/libgpg-error/"
+pinned = true
+needed_by = ["libgcrypt", "libassuan", "gpgme", "gnupg"]
+
+[[component]]
+name = "libassuan"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/software/libassuan/"
+pinned = true
+needed_by = ["gpgme", "gnupg"]
+
+[[component]]
+name = "libgcrypt"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/software/libgcrypt/"
+pinned = true
+needed_by = ["gnupg"]
+
+[[component]]
+name = "libksba"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/software/libksba/"
+pinned = true
+needed_by = ["gnupg"]
+
+[[component]]
+name = "npth"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/software/npth/"
+pinned = true
+needed_by = ["gnupg"]
+
+[[component]]
+name = "gnupg"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/"
+pinned = true
+needed_by = ["pacman"]
+note = "Runtime gpg for package signature verification. Required deps (the pinned libgcrypt stack, zlib, bzip2, readline) plus sqlite for the TOFU trust DB. Disabled for the minimal base: gnutls/ntbtls (HKPS keyservers), libldap (LDAP keyservers), libusb (smartcards), tpm2-tss, pinentry (needed only for signing, not verification)."
+
+[[component]]
+name = "sqlite"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://sqlite.org/"
+pinned = true
+needed_by = ["gnupg"]
+note = "TOFU trust database for gnupg. Amalgamation build; deps (readline, zlib) pinned."
+
+[[component]]
+name = "gpgme"
+phase = "chroot-base"
+role = "crypto"
+upstream = "https://gnupg.org/software/gpgme/"
+pinned = true
+needed_by = ["pacman"]
+note = "Requires libgpg-error, libassuan, gnupg."
+
+# --- chroot-base: pinned base targets ---
+
+[[component]]
+name = "systemd"
+phase = "chroot-base"
+role = "base-target"
+upstream = "https://systemd.io/"
+pinned = true
+needed_by = []
+note = "Build deps: meson, ninja, gperf, python-jinja, util-linux, libcap, libxcrypt, kmod."
+
+[[component]]
+name = "pacman"
+phase = "chroot-base"
+role = "base-target"
+upstream = "https://gitlab.archlinux.org/pacman/pacman"
+pinned = true
+needed_by = []
+note = "Build deps: meson, libarchive, curl, gpgme, openssl, and the crypto stack."

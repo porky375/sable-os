@@ -1,0 +1,10 @@
+NAME="Sable"
+PRETTY_NAME="Sable Alpha"
+ID=sable
+ID_LIKE=linux
+BUILD_ID=rolling
+ANSI_COLOR="1;37"
+HOME_URL="https://github.com/porky375/sable-os"
+DOCUMENTATION_URL="https://github.com/porky375/sable-os/tree/main/docs"
+SUPPORT_URL="https://github.com/porky375/sable-os/issues"
+BUG_REPORT_URL="https://github.com/porky375/sable-os/issues"

@@ -3,6 +3,7 @@
 /repo/out/
 /target/
 /.cache/
+/.sable-ai/
 *.iso
 *.img
 *.qcow2
@@ -10,3 +11,5 @@
 *.sig
 *.log
 *.tmp
+__pycache__/
+*.pyc

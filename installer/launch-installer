@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[[ -f /etc/sable-installer-preview ]] || {
+    printf 'The Sable installer is not enabled on this system.\n' >&2
+    exit 1
+}
+systemd-detect-virt --vm --quiet || {
+    printf 'The preview installer may run only inside a virtual machine.\n' >&2
+    exit 1
+}
+command -v calamares >/dev/null 2>&1 || {
+    printf 'Calamares is not installed.\n' >&2
+    exit 1
+}
+
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
+if ((EUID == 0)); then
+    live_root=/run/sable-live-root
+    install -d "$live_root"
+    if ! mountpoint -q "$live_root"; then
+        mount --bind / "$live_root"
+    fi
+
+    status=0
+    calamares || status=$?
+    umount "$live_root" || true
+    exit "$status"
+fi
+
+exec sudo --preserve-env=DISPLAY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,XAUTHORITY,QT_QPA_PLATFORM \
+    "$0"

@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+#
+# migrate-build-storage: safely move the Sable build workspace off volatile
+# tmpfs (/dev/shm/sable-build) onto a persistent, loop-mounted ext4 build image.
+#
+# The migration is a resumable rsync between two already-mounted directories and
+# needs no privileges itself. The privileged, hang-prone step is mounting the
+# NTFS host volume that stores the image (see docs/BUILD_STORAGE.md); this tool
+# never performs it. If the target is not already a mounted Sable build image,
+# it prints the exact privileged prerequisite commands and stops.
+#
+# Safety invariants:
+#   * never writes to a block device; only into an existing mounted directory;
+#   * never deletes the source unless --reclaim is given AND the copy verified;
+#   * defaults to a dry-run plan; changes require --apply.
+#
+# Usage:
+#   migrate-build-storage [--apply] [--reclaim] [SRC] [DST]
+#   migrate-build-storage selftest
+#
+# SRC defaults to /dev/shm/sable-build; DST defaults to $SABLE_BUILD_ROOT.
+# Exit: 0 ok, 1 error/unverified, 2 usage, 3 privileged prerequisite required.
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+
+require_command rsync
+require_command findmnt
+require_command du
+require_command df
+
+partial_dir='.sable-rsync-partial'
+
+fail() {
+    printf 'migrate-build-storage: %s\n' "$1" >&2
+    exit 1
+}
+
+# Reject sources we must never delete or that are obviously unsafe.
+validate_source() {
+    local src="$1"
+    [[ -d "$src" ]] || fail "source workspace does not exist: $src"
+    [[ -e "$src/.sable-build-volume" ]] ||
+        fail "source is not a marked Sable build volume (missing .sable-build-volume): $src"
+}
+
+validate_target() {
+    local dst="$1" src="$2" fstype source
+    [[ -d "$dst" ]] || fail "target is not a directory: $dst"
+    [[ ! -b "$dst" ]] || fail "target must be a directory, not a block device: $dst"
+    [[ -w "$dst" ]] || fail "target directory is not writable: $dst"
+
+    local rsrc rdst
+    rsrc="$(readlink -m -- "$src")"
+    rdst="$(readlink -m -- "$dst")"
+    [[ "$rsrc" != "$rdst" ]] || fail "source and target are the same path: $rdst"
+    [[ "$rdst" != "$rsrc/"* ]] || fail "target is inside the source: $rdst"
+    [[ "$rsrc" != "$rdst/"* ]] || fail "source is inside the target: $rsrc"
+
+    # Test-only escape hatch: skip the loop/ext4 requirement for fixtures.
+    if [[ "${SABLE_MIGRATE_ALLOW_ANY_TARGET:-0}" == "1" ]]; then
+        return
+    fi
+
+    fstype="$(findmnt -T "$dst" -no FSTYPE 2>/dev/null || true)"
+    source="$(findmnt -T "$dst" -no SOURCE 2>/dev/null || true)"
+    [[ "$fstype" != "tmpfs" ]] ||
+        fail "refusing to migrate onto tmpfs (that is volatile RAM, not persistent): $dst"
+    if [[ "$fstype" != "ext4" || ! "$source" =~ ^/dev/loop[0-9]+$ ]]; then
+        print_privileged_prerequisite "$dst" "$fstype" "$source"
+        exit 3
+    fi
+}
+
+print_privileged_prerequisite() {
+    local dst="$1" fstype="$2" source="$3"
+    cat >&2 <<EOF
+STATUS: target is not a mounted Sable build image.
+  path:   $dst
+  fstype: ${fstype:-none}   source: ${source:-none}
+
+The migration target must be a loop-mounted ext4 Sable build image. Prepare it
+with these PRIVILEGED steps first (each may prompt via polkit/udisks), and send
+status before running them:
+
+  1. Mount the persistent host volume read-write, e.g. ExtraStorage.
+     NOTE: NTFS via ntfs-3g has hung this machine under heavy build I/O.
+     See docs/BUILD_STORAGE.md for the safe mount procedure and alternatives.
+  2. scripts/prepare-build-storage /run/media/\$USER/<VOLUME> 160
+  3. scripts/mount-build-storage /run/media/\$USER/<VOLUME>/sable-build.ext4
+     -> prints SABLE_BUILD_ROOT=<mountpoint>
+
+Then re-run:
+  SABLE_BUILD_ROOT=<mountpoint> scripts/migrate-build-storage --apply
+EOF
+}
+
+check_capacity() {
+    local src="$1" dst="$2" used_kib avail_kib required_kib
+    used_kib="$(du -sk --one-file-system "$src" | awk '{print $1}')"
+    avail_kib="$(df -Pk "$dst" | awk 'NR == 2 { print $4 }')"
+    required_kib=$((used_kib + used_kib / 10))
+    printf '  source uses %d MiB; target has %d MiB free\n' \
+        "$((used_kib / 1024))" "$((avail_kib / 1024))"
+    ((avail_kib >= required_kib)) ||
+        fail "target lacks space: need ~$((required_kib / 1024)) MiB, have $((avail_kib / 1024)) MiB"
+}
+
+copy_workspace() {
+    local src="$1" dst="$2"
+    printf 'Copying (resumable) %s -> %s\n' "$src" "$dst"
+    rsync -aHx --info=stats1 \
+        --partial --partial-dir="$partial_dir" \
+        --exclude="/$partial_dir" \
+        "$src/" "$dst/"
+}
+
+# Returns 0 when every source file is present and content-identical on target.
+verify_workspace() {
+    local src="$1" dst="$2" diffs
+    printf 'Verifying by checksum...\n'
+    diffs="$(rsync -aHxn -c --itemize-changes \
+        --exclude="/$partial_dir" \
+        "$src/" "$dst/" | grep -E '^[<>c]f' || true)"
+    if [[ -n "$diffs" ]]; then
+        printf 'unverified: %d file(s) still differ or are missing on target:\n' \
+            "$(printf '%s\n' "$diffs" | wc -l)" >&2
+        printf '%s\n' "$diffs" | head -n 10 >&2
+        return 1
+    fi
+    printf '  verified: all source content is present and identical on target\n'
+}
+
+reclaim_source() {
+    local src="$1" rsrc
+    rsrc="$(readlink -m -- "$src")"
+    # Hard guards against a catastrophic delete.
+    [[ "$rsrc" == /dev/shm/* || -e "$rsrc/.sable-build-volume" ]] ||
+        fail "refusing to reclaim an unmarked source: $rsrc"
+    [[ "$rsrc" != "/" && "$rsrc" != "$HOME" && "$rsrc" != "/home" ]] ||
+        fail "refusing to reclaim unsafe path: $rsrc"
+    printf 'Reclaiming source (freeing RAM): %s\n' "$rsrc"
+    rm -rf -- "$rsrc"
+}
+
+run_migration() {
+    local apply="$1" reclaim="$2" src="$3" dst="$4"
+
+    printf 'Sable build storage migration\n  source: %s\n  target: %s\n' "$src" "$dst"
+    validate_source "$src"
+    validate_target "$dst" "$src"
+    check_capacity "$src" "$dst"
+
+    if [[ "$apply" != "1" ]]; then
+        printf '\nPLAN (dry run). Files that would transfer:\n'
+        rsync -aHxn --itemize-changes --exclude="/$partial_dir" "$src/" "$dst/" |
+            grep -E '^[<>c]f' | head -n 20 || true
+        printf '\nRe-run with --apply to perform the migration.\n'
+        return 0
+    fi
+
+    copy_workspace "$src" "$dst"
+    verify_workspace "$src" "$dst" || fail "migration incomplete; re-run to resume"
+
+    if [[ "$reclaim" == "1" ]]; then
+        reclaim_source "$src"
+    else
+        printf '\nSource preserved. After confirming the target, free RAM with:\n'
+        printf '  scripts/migrate-build-storage --apply --reclaim %q %q\n' "$src" "$dst"
+    fi
+    printf '\nMigration verified. Set SABLE_BUILD_ROOT=%s for builds.\n' "$dst"
+}
+
+selftest() {
+    local status=0
+    _selftest_tmp="$(mktemp -d)"
+    trap 'rm -rf -- "${_selftest_tmp:-/nonexistent}"' EXIT
+    local tmp="$_selftest_tmp"
+    export SABLE_MIGRATE_ALLOW_ANY_TARGET=1
+
+    local src="$tmp/src" dst="$tmp/dst"
+    mkdir -p "$src/cache/stage0" "$src/images" "$dst"
+    : > "$src/.sable-build-volume"
+    head -c 1048576 /dev/urandom > "$src/cache/stage0/blob.bin"
+    printf 'log line\n' > "$src/images/build.log"
+
+    # 1. plan mode changes nothing
+    ( run_migration 0 0 "$src" "$dst" ) >/dev/null 2>&1 || true
+    if [[ -e "$dst/cache/stage0/blob.bin" ]]; then
+        printf '  selftest FAIL: plan mode copied data\n' >&2; status=1
+    else
+        printf '  selftest ok: plan mode is read-only\n'
+    fi
+
+    # 2. apply migrates and verifies
+    if ( run_migration 1 0 "$src" "$dst" ) >/dev/null 2>&1; then
+        if cmp -s "$src/cache/stage0/blob.bin" "$dst/cache/stage0/blob.bin"; then
+            printf '  selftest ok: apply copied and verified content\n'
+        else
+            printf '  selftest FAIL: copied content differs\n' >&2; status=1
+        fi
+    else
+        printf '  selftest FAIL: apply migration failed\n' >&2; status=1
+    fi
+
+    # 3. resumable: truncate a target file, re-apply, must repair + verify
+    printf 'corrupt' > "$dst/cache/stage0/blob.bin"
+    if ( run_migration 1 0 "$src" "$dst" ) >/dev/null 2>&1 &&
+        cmp -s "$src/cache/stage0/blob.bin" "$dst/cache/stage0/blob.bin"; then
+        printf '  selftest ok: re-run repaired a corrupted target file\n'
+    else
+        printf '  selftest FAIL: re-run did not repair target\n' >&2; status=1
+    fi
+
+    # 4. refuses unmarked source
+    rm -f "$src/.sable-build-volume"
+    if ( run_migration 0 0 "$src" "$dst" ) >/dev/null 2>&1; then
+        printf '  selftest FAIL: accepted unmarked source\n' >&2; status=1
+    else
+        printf '  selftest ok: rejected unmarked source\n'
+    fi
+    : > "$src/.sable-build-volume"
+
+    # 5. refuses identical source and target
+    if ( run_migration 0 0 "$src" "$src" ) >/dev/null 2>&1; then
+        printf '  selftest FAIL: accepted identical src/dst\n' >&2; status=1
+    else
+        printf '  selftest ok: rejected identical src/dst\n'
+    fi
+
+    # 6. reclaim removes a marked source
+    ( run_migration 1 1 "$src" "$dst" ) >/dev/null 2>&1 || true
+    if [[ -e "$src" ]]; then
+        printf '  selftest FAIL: reclaim did not remove source\n' >&2; status=1
+    else
+        printf '  selftest ok: reclaim removed the marked source\n'
+    fi
+
+    rm -rf -- "$tmp"
+    trap - EXIT
+    [[ "$status" -eq 0 ]] && printf 'migrate-build-storage selftest passed.\n'
+    return "$status"
+}
+
+main() {
+    local apply=0 reclaim=0
+    local -a positional=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            selftest) selftest; return ;;
+            --apply) apply=1 ;;
+            --reclaim) reclaim=1 ;;
+            -h | --help | help) sed -n '3,22p' "$0"; return ;;
+            --) shift; positional+=("$@"); break ;;
+            -*) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
+            *) positional+=("$1") ;;
+        esac
+        shift
+    done
+
+    load_project_env
+    local src="${positional[0]:-/dev/shm/sable-build}"
+    local dst="${positional[1]:-${SABLE_BUILD_ROOT:-}}"
+    [[ -n "$dst" ]] || {
+        printf 'target not given and SABLE_BUILD_ROOT is unset\n' >&2
+        exit 2
+    }
+    run_migration "$apply" "$reclaim" "$src" "$dst"
+}
+
+main "$@"

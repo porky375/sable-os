@@ -10,11 +10,82 @@ set -euo pipefail
     printf 'target EFI system partition is not mounted at /boot/efi\n' >&2
     exit 1
 }
-[[ -x /usr/bin/limine ]] || {
-    printf 'Limine host utility is missing from the target\n' >&2
+[[ -f /usr/share/limine/BOOTX64.EFI ]] || {
+    printf 'Limine UEFI loader is missing from the target\n' >&2
     exit 1
 }
 
-printf 'Limine installation is intentionally blocked until the virtual-disk '
-printf 'integration test provides the target ESP UUID and atomic config path.\n'
-exit 1
+root_source="$(findmnt -n -o SOURCE /)"
+root_uuid="$(findmnt -n -o UUID /)"
+root_fstype="$(findmnt -n -o FSTYPE /)"
+root_fs_path="$(findmnt -n -o FSROOT /)"
+
+[[ -n "$root_source" && -n "$root_uuid" ]] || {
+    printf 'could not identify the installed root filesystem\n' >&2
+    exit 1
+}
+if [[ "$root_source" == /dev/mapper/* ]]; then
+    printf 'encrypted-root Limine installation is not enabled in this preview\n' >&2
+    exit 1
+fi
+
+kernel="/boot/vmlinuz-linux-lts"
+initramfs="/boot/initramfs-linux-lts.img"
+[[ -f "$kernel" && -f "$initramfs" ]] || {
+    printf 'Linux LTS kernel or initramfs is missing\n' >&2
+    exit 1
+}
+
+efi_root="/boot/efi"
+sable_efi="$efi_root/EFI/sable"
+install -d -m0700 "$efi_root/EFI/BOOT" "$sable_efi"
+install -m0644 /usr/share/limine/BOOTX64.EFI \
+    "$efi_root/EFI/BOOT/BOOTX64.EFI"
+install -m0644 /usr/share/limine/BOOTX64.EFI \
+    "$sable_efi/sablex64.efi"
+install -m0644 "$kernel" "$sable_efi/vmlinuz-linux-lts"
+install -m0644 "$initramfs" "$sable_efi/initramfs-linux-lts.img"
+
+if [[ -f /usr/share/backgrounds/sable/wallpaper.png ]]; then
+    install -m0644 /usr/share/backgrounds/sable/wallpaper.png \
+        "$sable_efi/wallpaper.png"
+fi
+
+kernel_options=("root=UUID=$root_uuid" "rw" "rootfstype=$root_fstype")
+if [[ "$root_fstype" == btrfs && "$root_fs_path" != / ]]; then
+    kernel_options+=("rootflags=subvol=${root_fs_path#/}")
+fi
+
+temporary_config="$(mktemp "$efi_root/.limine.conf.XXXXXX")"
+{
+    printf 'timeout: 2\n'
+    printf 'default_entry: 1\n'
+    printf 'remember_last_entry: no\n'
+    if [[ -f "$sable_efi/wallpaper.png" ]]; then
+        printf 'wallpaper: boot():/EFI/sable/wallpaper.png\n'
+        printf 'wallpaper_style: cover\n'
+    fi
+    printf 'term_background: c0101010\n'
+    printf 'term_foreground: f4f4f5\n\n'
+    printf '/Sable\n'
+    printf '    protocol: linux\n'
+    printf '    path: boot():/EFI/sable/vmlinuz-linux-lts\n'
+    printf '    module_path: boot():/EFI/sable/initramfs-linux-lts.img\n'
+    printf '    kernel_cmdline: %s quiet\n\n' "${kernel_options[*]}"
+    printf '/Sable recovery\n'
+    printf '    protocol: linux\n'
+    printf '    path: boot():/EFI/sable/vmlinuz-linux-lts\n'
+    printf '    module_path: boot():/EFI/sable/initramfs-linux-lts.img\n'
+    printf '    kernel_cmdline: %s systemd.unit=multi-user.target\n' \
+        "${kernel_options[*]}"
+    if [[ -f "$efi_root/EFI/Microsoft/Boot/bootmgfw.efi" ]]; then
+        printf '\n/Windows Boot Manager\n'
+        printf '    protocol: efi_chainload\n'
+        printf '    path: boot():/EFI/Microsoft/Boot/bootmgfw.efi\n'
+    fi
+} >"$temporary_config"
+chmod 0600 "$temporary_config"
+mv -f -- "$temporary_config" "$efi_root/limine.conf"
+sync -f "$efi_root/limine.conf"
+
+printf 'Installed Limine fallback loader and Sable boot entries.\n'

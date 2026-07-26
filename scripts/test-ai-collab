@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+temporary_root="$(mktemp -d)"
+trap 'rm -rf -- "$temporary_root"' EXIT
+export SABLE_AI_ROOT="$temporary_root/state"
+
+collab="$script_dir/ai-collab"
+"$collab" init >/dev/null
+"$collab" register alpha "Alpha Model" model-a >/dev/null
+"$collab" register beta "Beta Model" model-b >/dev/null
+"$collab" claim alpha boot "Work on boot scripts" scripts/build-dev-image \
+    dev-image >/dev/null
+
+if "$collab" claim beta conflict "Conflicting work" scripts >/dev/null 2>&1; then
+    printf 'overlapping scope claim was accepted\n' >&2
+    exit 1
+fi
+
+if "$collab" claim beta boot "Duplicate task identity" unrelated >/dev/null 2>&1; then
+    printf 'duplicate active task identity was accepted\n' >&2
+    exit 1
+fi
+
+"$collab" claim beta docs "Work on documentation" docs/ROADMAP.md >/dev/null
+"$collab" note alpha "Boot image is ready for verification." beta >/dev/null
+"$collab" note beta "Global build status." >/dev/null
+if ! "$collab" inbox alpha | grep -q 'Global build status'; then
+    printf 'broadcast note was missing from another agent inbox\n' >&2
+    exit 1
+fi
+"$collab" handoff alpha beta boot "Please run the VM test." >/dev/null
+"$collab" 'done' beta boot "VM reached the graphical session." >/dev/null
+"$collab" release beta docs "Documentation task is available." >/dev/null
+
+jq -e '
+  (.agents | length) == 2 and
+  (.tasks | any(.id == "boot" and .status == "completed" and
+    .owner == "beta")) and
+  (.tasks | any(.id == "docs" and .status == "available" and
+    .owner == null))
+' "$SABLE_AI_ROOT/state.json" >/dev/null
+
+event_count="$(wc -l <"$SABLE_AI_ROOT/events.jsonl")"
+[[ "$event_count" -eq 9 ]] || {
+    printf 'unexpected event count: %s\n' "$event_count" >&2
+    exit 1
+}
+
+printf 'AI collaboration protocol passed.\n'

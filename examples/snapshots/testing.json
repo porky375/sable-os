@@ -5,21 +5,21 @@
   "architecture": "x86_64",
   "publishedAt": "2026-07-23T12:00:00Z",
   "repositories": [
-    "os-core",
-    "os-desktop",
-    "os-extra"
+    "sable-core",
+    "sable-desktop",
+    "sable-extra"
   ],
   "packages": [
     {
-      "name": "os-name-release",
+      "name": "sable-release",
       "version": "0.1.0-1",
-      "repository": "os-core",
+      "repository": "sable-core",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],
   "boot": {
-    "kernel": "/EFI/os_name/vmlinuz-linux-lts",
-    "initramfs": "/EFI/os_name/initramfs-linux-lts.img",
+    "kernel": "/EFI/sable/vmlinuz-linux-lts",
+    "initramfs": "/EFI/sable/initramfs-linux-lts.img",
     "rootSubvolume": "@"
   }
 }

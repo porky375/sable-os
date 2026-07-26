@@ -6,6 +6,23 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd -- "$script_dir/.." && pwd)"
 failed=0
 
+# Only actual shell scripts should be fed to `bash -n` and ShellCheck. Detect by
+# shebang so non-shell helpers living in these directories (e.g. the Python
+# sable-ai router) are validated by their own tools instead of failing the shell
+# linters.
+is_shell_script() {
+    local first
+    IFS= read -r first <"$1" 2>/dev/null || return 1
+    [[ "$first" == '#!'* ]] || return 1
+    [[ "$first" =~ (^|[[:space:]/])(sh|bash|dash|ksh|mksh|ash|busybox)([[:space:]]|$) ]]
+}
+
+is_python_script() {
+    local first
+    IFS= read -r first <"$1" 2>/dev/null || return 1
+    [[ "$first" =~ (^|[[:space:]/])python[0-9.]*([[:space:]]|$) ]]
+}
+
 printf 'Checking JSON files...\n'
 while IFS= read -r -d '' json_file; do
     if ! jq empty "$json_file"; then
@@ -16,11 +33,13 @@ done < <(find "$project_root" -path "$project_root/target" -prune -o \
 
 printf 'Checking shell syntax...\n'
 while IFS= read -r -d '' shell_file; do
+    is_shell_script "$shell_file" || continue
     if ! bash -n "$shell_file"; then
         failed=1
     fi
 done < <(find \
     "$project_root/scripts" \
+    "$project_root/bootstrap" \
     "$project_root/repo" \
     "$project_root/boot" \
     "$project_root/installer" \
@@ -33,17 +52,69 @@ while IFS= read -r -d '' package_build; do
     fi
 done < <(find "$project_root/packages" -type f -name PKGBUILD -print0)
 
+printf 'Checking Python syntax...\n'
+while IFS= read -r -d '' python_file; do
+    is_python_script "$python_file" || continue
+    if ! python3 -c 'import ast,sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' \
+        "$python_file"; then
+        failed=1
+    fi
+done < <(find \
+    "$project_root/scripts" \
+    "$project_root/bootstrap" \
+    "$project_root/repo" \
+    "$project_root/installer" \
+    "$project_root/iso" \
+    -type f -perm -u+x -print0 2>/dev/null)
+
+printf 'Testing AI collaboration protocol...\n'
+if ! "$project_root/scripts/test-ai-collab"; then
+    failed=1
+fi
+
+printf 'Testing installer safety policy...\n'
+if ! "$project_root/scripts/test-installer"; then
+    failed=1
+fi
+
+printf 'Checking bootstrap source manifest...\n'
+if ! "$project_root/bootstrap/check-sources"; then
+    failed=1
+fi
+
+printf 'Checking bootstrap dependency audit...\n'
+if ! "$project_root/bootstrap/check-dependencies"; then
+    failed=1
+fi
+
+printf 'Testing runtime-closure policy...\n'
+if ! "$project_root/repo/verify-runtime-closure" selftest; then
+    failed=1
+fi
+
+printf 'Testing repository-signature policy...\n'
+if ! "$project_root/repo/verify-repository-signatures" selftest; then
+    failed=1
+fi
+
 if command -v shellcheck >/dev/null 2>&1; then
     printf 'Running ShellCheck...\n'
-    mapfile -d '' shell_files < <(
+    mapfile -d '' candidate_files < <(
         find \
             "$project_root/scripts" \
+            "$project_root/bootstrap" \
             "$project_root/repo" \
             "$project_root/boot" \
             "$project_root/installer" \
             "$project_root/iso" \
             -type f -perm -u+x -print0 2>/dev/null
     )
+    shell_files=()
+    for candidate_file in "${candidate_files[@]}"; do
+        if is_shell_script "$candidate_file"; then
+            shell_files+=("$candidate_file")
+        fi
+    done
     if ((${#shell_files[@]} > 0)) && ! shellcheck "${shell_files[@]}"; then
         failed=1
     fi

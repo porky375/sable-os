@@ -164,11 +164,11 @@ impl StateStore {
 
     pub fn default_path() -> Result<PathBuf> {
         if let Some(state_home) = std::env::var_os("XDG_STATE_HOME") {
-            return Ok(PathBuf::from(state_home).join("os_name/desktop.json"));
+            return Ok(PathBuf::from(state_home).join("sable/desktop.json"));
         }
 
         let home = std::env::var_os("HOME").context("HOME is not set")?;
-        Ok(PathBuf::from(home).join(".local/state/os_name/desktop.json"))
+        Ok(PathBuf::from(home).join(".local/state/sable/desktop.json"))
     }
 
     pub fn load(&self) -> Result<DesktopState> {

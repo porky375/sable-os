@@ -9,7 +9,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 rust-version = "1.88"
-authors = ["os_name contributors"]
+authors = ["Sable contributors"]
 
 [workspace.dependencies]
 anyhow = "1.0.100"

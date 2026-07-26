@@ -1,0 +1,29 @@
+pkgname=sable-desktop
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Desktop metapackage for Sable'
+arch=('any')
+url='https://github.com/porky375/sable-os'
+license=('MIT')
+depends=(
+    grim
+    hypridle
+    hyprland
+    hyprlock
+    hyprpaper
+    kitty
+    mesa
+    sable-desktopd
+    pipewire
+    quickshell
+    slurp
+    thunar
+    vulkan-icd-loader
+    xdg-desktop-portal
+    xdg-desktop-portal-hyprland
+    xorg-xwayland
+)
+
+package() {
+    install -d "$pkgdir/usr/share/sable"
+}

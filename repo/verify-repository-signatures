@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+#
+# verify-repository-signatures: pre-promotion signing gate for a Sable repo.
+#
+# publish-package signs packages and the database at publish time; this gate
+# independently proves, before any promotion, that a repository directory is
+# fully and correctly signed:
+#   * every *.pkg.tar.* has a detached *.sig,
+#   * the repository database (*.db.tar.*, and *.files.tar.* when present) is
+#     signed,
+#   * no *.sig is orphaned, and
+#   * with a keyring, every signature verifies as GOOD.
+# Optionally cross-checks package hashes against a generate-snapshot manifest.
+#
+# Usage:
+#   verify-repository-signatures [--keyring FILE] [--snapshot FILE] REPO_DIR
+#   verify-repository-signatures selftest
+#
+# REPO_DIR is the architecture directory holding the packages and database,
+# e.g. $SABLE_BUILD_ROOT/repositories/<channel>/<repo>/<arch>.
+#
+# Without --keyring, signature presence and integrity are checked but a
+# signature whose key is absent is only a warning (cannot fully verify). With
+# --keyring, an unverifiable or bad signature is a violation.
+#
+# Exit: 0 clean, 1 violation/error, 2 usage.
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$project_root/scripts/lib/common.sh"
+
+require_command gpg
+
+violations=0
+keyring=''
+snapshot=''
+verify_home=''       # temp GNUPGHOME when a keyring is imported
+strict=0             # 1 when a keyring is supplied
+
+violation() {
+    printf '  VIOLATION: %s\n' "$1" >&2
+    violations=$((violations + 1))
+}
+
+warn() {
+    printf '  warning: %s\n' "$1" >&2
+}
+
+cleanup() {
+    if [[ -n "$verify_home" ]]; then
+        gpgconf --homedir "$verify_home" --kill all >/dev/null 2>&1 || true
+        rm -rf -- "$verify_home"
+    fi
+}
+trap cleanup EXIT
+
+gpg_v() {
+    if [[ -n "$verify_home" ]]; then
+        gpg --homedir "$verify_home" --batch --status-fd=1 "$@"
+    else
+        gpg --batch --status-fd=1 "$@"
+    fi
+}
+
+# classify_signature SIG FILE -> prints good|bad|unverifiable
+classify_signature() {
+    local sig="$1" file="$2" status
+    status="$(gpg_v --verify "$sig" "$file" 2>/dev/null || true)"
+    if grep -q '^\[GNUPG:\] \(GOODSIG\|VALIDSIG\)' <<<"$status"; then
+        printf 'good\n'
+    elif grep -q '^\[GNUPG:\] BADSIG' <<<"$status"; then
+        printf 'bad\n'
+    else
+        printf 'unverifiable\n'
+    fi
+}
+
+check_signed() {
+    local file="$1" label="$2" sig="$1.sig" verdict
+    if [[ ! -f "$sig" ]]; then
+        violation "$label is not signed (missing $(basename -- "$sig"))"
+        return
+    fi
+    verdict="$(classify_signature "$sig" "$file")"
+    case "$verdict" in
+        good) : ;;
+        bad) violation "$label has an INVALID signature" ;;
+        unverifiable)
+            if [[ "$strict" -eq 1 ]]; then
+                violation "$label signature does not verify against the keyring"
+            else
+                warn "$label signature present but its key is not available (pass --keyring to verify)"
+            fi
+            ;;
+    esac
+}
+
+load_snapshot_hashes() {
+    # Prints "sha256<TAB>name" lines from a generate-snapshot manifest.
+    require_command jq
+    jq -r '.[] | "\(.sha256)\t\(.name)"' "$snapshot"
+}
+
+verify_repo_dir() {
+    local dir="$1"
+    dir="$(readlink -m -- "$dir")"
+    [[ -d "$dir" ]] || {
+        printf 'repository directory does not exist: %s\n' "$dir" >&2
+        exit 1
+    }
+    printf 'Verifying repository signatures: %s\n' "$dir"
+
+    local snapshot_hashes=''
+    [[ -n "$snapshot" ]] && snapshot_hashes="$(load_snapshot_hashes)"
+
+    # Packages.
+    local pkg pkg_count=0
+    while IFS= read -r -d '' pkg; do
+        pkg_count=$((pkg_count + 1))
+        check_signed "$pkg" "package $(basename -- "$pkg")"
+        if [[ -n "$snapshot_hashes" ]]; then
+            local actual
+            actual="$(sha256sum "$pkg" | awk '{print $1}')"
+            grep -q "^$actual"$'\t' <<<"$snapshot_hashes" ||
+                violation "package $(basename -- "$pkg") is not in the accepted snapshot (hash mismatch)"
+        fi
+    done < <(find "$dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' -print0)
+
+    if [[ "$pkg_count" -eq 0 ]]; then
+        warn "no packages found in $dir"
+    fi
+
+    # Databases: <repo>.db.tar.* and, when present, <repo>.files.tar.*.
+    local db db_count=0
+    while IFS= read -r -d '' db; do
+        db_count=$((db_count + 1))
+        check_signed "$db" "database $(basename -- "$db")"
+    done < <(find "$dir" -maxdepth 1 -type f \( -name '*.db.tar.*' -o -name '*.files.tar.*' \) ! -name '*.sig' -print0)
+
+    if [[ "$db_count" -eq 0 ]]; then
+        violation "no repository database (*.db.tar.*) found in $dir"
+    fi
+
+    # Orphan signatures (a .sig whose signed file is absent).
+    local sig base
+    while IFS= read -r -d '' sig; do
+        base="${sig%.sig}"
+        [[ -f "$base" ]] || violation "orphan signature with no signed file: $(basename -- "$sig")"
+    done < <(find "$dir" -maxdepth 1 -type f -name '*.sig' -print0)
+
+    printf '  checked %d package(s) and %d database file(s)\n' "$pkg_count" "$db_count"
+}
+
+selftest() {
+    command -v gpgconf >/dev/null 2>&1 || {
+        printf 'selftest requires gpgconf\n' >&2
+        return 1
+    }
+    local status=0
+    _sig_selftest_tmp="$(mktemp -d)"
+    trap 'gpgconf --homedir "${_sig_selftest_tmp:-/nonexistent}/gnupg" --kill all >/dev/null 2>&1 || true; rm -rf -- "${_sig_selftest_tmp:-/nonexistent}"' EXIT
+    local tmp="$_sig_selftest_tmp"
+    local home="$tmp/gnupg" repo="$tmp/repo" key="$tmp/pub.asc"
+    mkdir -p "$home" "$repo"
+    chmod 700 "$home"
+
+    gpg --homedir "$home" --batch --pinentry-mode loopback --passphrase '' \
+        --quick-generate-key 'Sable Signing Test <sign@sable.invalid>' ed25519 sign 0 >/dev/null 2>&1
+    gpg --homedir "$home" --batch --armor --export > "$key" 2>/dev/null
+
+    # A fake package and database, signed like publish-package would.
+    head -c 4096 /dev/urandom > "$repo/sable-core-0.1.0-1-x86_64.pkg.tar.zst"
+    head -c 256  /dev/urandom > "$repo/sable-core.db.tar.zst"
+    local f
+    for f in "$repo/sable-core-0.1.0-1-x86_64.pkg.tar.zst" "$repo/sable-core.db.tar.zst"; do
+        gpg --homedir "$home" --batch --yes --detach-sign "$f" >/dev/null 2>&1
+    done
+
+    # Exercise the real entrypoint (keyring import + exit-code logic) in a
+    # subshell whose EXIT trap is its own cleanup, not the selftest's.
+    run() { ( trap cleanup EXIT; main --keyring "$key" "$repo" ) >/dev/null 2>&1; }
+
+    # 1. fully signed repo verifies
+    if run; then printf '  selftest ok: fully signed repo passes\n'
+    else printf '  selftest FAIL: signed repo rejected\n' >&2; status=1; fi
+
+    # 2. a missing package signature fails
+    mv "$repo/sable-core-0.1.0-1-x86_64.pkg.tar.zst.sig" "$tmp/held.sig"
+    if run; then printf '  selftest FAIL: accepted unsigned package\n' >&2; status=1
+    else printf '  selftest ok: rejected a missing package signature\n'; fi
+    mv "$tmp/held.sig" "$repo/sable-core-0.1.0-1-x86_64.pkg.tar.zst.sig"
+
+    # 3. a tampered package (signature no longer matches) fails
+    printf 'tamper' >> "$repo/sable-core-0.1.0-1-x86_64.pkg.tar.zst"
+    if run; then printf '  selftest FAIL: accepted a tampered package\n' >&2; status=1
+    else printf '  selftest ok: rejected a tampered package (bad signature)\n'; fi
+
+    gpgconf --homedir "$home" --kill all >/dev/null 2>&1 || true
+    rm -rf -- "$tmp"
+    trap - EXIT
+    [[ "$status" -eq 0 ]] && printf 'verify-repository-signatures selftest passed.\n'
+    return "$status"
+}
+
+main() {
+    local -a positional=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            selftest) selftest; return ;;
+            --keyring) keyring="${2:-}"; strict=1; shift ;;
+            --snapshot) snapshot="${2:-}"; shift ;;
+            -h | --help | help) sed -n '3,24p' "$0"; return ;;
+            --) shift; positional+=("$@"); break ;;
+            -*) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
+            *) positional+=("$1") ;;
+        esac
+        shift
+    done
+
+    [[ "${#positional[@]}" -eq 1 ]] || {
+        printf 'usage: %s [--keyring FILE] [--snapshot FILE] REPO_DIR\n' "$0" >&2
+        exit 2
+    }
+
+    if [[ -n "$keyring" ]]; then
+        [[ -f "$keyring" ]] || { printf 'keyring file not found: %s\n' "$keyring" >&2; exit 1; }
+        verify_home="$(mktemp -d)"
+        chmod 700 "$verify_home"
+        gpg --homedir "$verify_home" --batch --import "$keyring" >/dev/null 2>&1 ||
+            { printf 'could not import keyring: %s\n' "$keyring" >&2; exit 1; }
+    fi
+    [[ -z "$snapshot" || -f "$snapshot" ]] || { printf 'snapshot file not found: %s\n' "$snapshot" >&2; exit 1; }
+
+    verify_repo_dir "${positional[0]}"
+
+    printf '\n'
+    if [[ "$violations" -gt 0 ]]; then
+        printf 'FAIL: %d repository signing violation(s).\n' "$violations" >&2
+        exit 1
+    fi
+    printf 'PASS: repository is fully and correctly signed.\n'
+}
+
+main "$@"

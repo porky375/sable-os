@@ -1,6 +1,6 @@
-# os_name
+# Sable
 
-`os_name` is an independent x86-64 Linux desktop distribution project. It
+Sable is an independent x86-64 Linux desktop distribution project. It
 integrates upstream Linux components into its own signed pacman repositories,
 installer, recovery model, and Wayland desktop.
 
@@ -12,7 +12,7 @@ important data.
 
 - Linux LTS by default, with a tested current kernel as an option.
 - glibc, systemd, Mesa, NetworkManager, PipeWire, AppArmor, and Btrfs.
-- Hyprland with an `os_name` shell, settings application, and pinned decoration
+- Hyprland with a Sable shell, settings application, and pinned decoration
   plugin.
 - Signed pacman repositories promoted from `testing` to `stable`.
 - Calamares installer, Limine boot manager, LUKS2 option, and root-only
@@ -30,9 +30,11 @@ important data.
 | `installer/` | Calamares branding, configuration, and safety policy |
 | `boot/` | Limine templates and recovery-entry generation |
 | `desktop/` | Desktop state service, shell, settings, and compositor plugin |
+| `assets/` | Versioned wallpapers and other release artwork |
 | `schemas/` | Stable JSON interfaces for packs and snapshots |
 | `scripts/` | Build, validation, and developer utilities |
 | `docs/` | Architecture, security, testing, roadmap, and AI handoff |
+| `ai/` | Multi-model collaboration protocol and command reference |
 
 ## Start Here
 
@@ -51,16 +53,34 @@ Run repository validation:
 Create a build workspace on a writable volume with at least 100 GiB free:
 
 ```bash
-./scripts/create-build-workspace /path/to/os-name-builds
+./scripts/prepare-build-storage /path/to/writable/data-volume
+./scripts/mount-build-storage /path/to/writable/data-volume/sable-build.ext4
 ```
 
-The current machine's 1 TB `ExtraStorage` NTFS volume is read-only. Do not
-force-mount it or clear its Windows hibernation flag from Linux. Shut Windows
-down fully and repair the filesystem there before selecting it as a build
-workspace.
+The current fallback build root is volatile `/dev/shm`; do not reboot while it
+contains the only copy of useful artifacts. ExtraStorage is presently
+unmounted because its NTFS/FUSE path previously stalled under build I/O. See
+[docs/BUILD_STORAGE.md](docs/BUILD_STORAGE.md) for the verified resumable
+migration helper and the safer native-Linux-filesystem recommendation.
 
 See [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) before continuing substantial
 implementation.
+
+Models sharing this checkout coordinate work through `./scripts/ai-collab`.
+Run `./scripts/ai-collab context` for a current handoff packet and see
+[ai/README.md](ai/README.md) for the claim and messaging protocol.
+
+Development-host Limine maintenance and recovery are documented in
+[docs/DEV_HOST_BOOT.md](docs/DEV_HOST_BOOT.md).
+
+The disposable stage-0 VM image is documented in
+[dev-image/README.md](dev-image/README.md). It boots through Limine into the
+Sable graphical session, but remains explicitly non-release until its Arch
+bootstrap packages have been rebuilt into Sable repositories.
+
+The default desktop and boot artwork is
+`assets/wallpapers/sable-default.png`. The VM start menu includes a guarded
+installer preview that targets only the attached disposable virtual disk.
 
 ## Licensing
 

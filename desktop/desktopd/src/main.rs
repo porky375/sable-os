@@ -6,8 +6,8 @@ use service::DesktopService;
 use state::StateStore;
 use zbus::connection;
 
-const BUS_NAME: &str = "org.os_name.Desktop1";
-const OBJECT_PATH: &str = "/org/os_name/Desktop1";
+const BUS_NAME: &str = "org.sable.Desktop1";
+const OBJECT_PATH: &str = "/org/sable/Desktop1";
 
 #[tokio::main]
 async fn main() -> Result<()> {

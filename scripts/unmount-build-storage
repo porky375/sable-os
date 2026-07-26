@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+image="${1:-}"
+[[ -n "$image" ]] || {
+    printf 'usage: %s /path/to/sable-build.ext4\n' "$0" >&2
+    exit 2
+}
+image="$(readlink -m -- "$image")"
+[[ -f "$image" && ! -L "$image" && ! -b "$image" ]] || {
+    printf 'build image must be a regular file: %s\n' "$image" >&2
+    exit 1
+}
+
+loop_device="$(losetup -j "$image" | awk -F: 'NR == 1 { print $1 }')"
+[[ "$loop_device" =~ ^/dev/loop[0-9]+$ ]] || {
+    printf 'build image is not attached\n'
+    exit 0
+}
+
+if findmnt -rn -S "$loop_device" >/dev/null; then
+    udisksctl unmount -b "$loop_device" >/dev/null
+fi
+udisksctl loop-delete -b "$loop_device" >/dev/null
+printf 'Unmounted Sable build storage: %s\n' "$image"

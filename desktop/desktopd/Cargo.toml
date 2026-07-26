@@ -1,6 +1,6 @@
 [package]
-name = "os-name-desktopd"
-description = "Persistent desktop state service for os_name"
+name = "sable-desktopd"
+description = "Persistent desktop state service for Sable"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

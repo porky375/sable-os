@@ -6,14 +6,14 @@ ParallelDownloads = 5
 SigLevel = Required DatabaseOptional TrustedOnly
 LocalFileSigLevel = Required
 
-[os-core]
+[sable-core]
 SigLevel = Required TrustedOnly
-Server = @OS_REPO_BASE_URL@/@CHANNEL@/os-core/$arch
+Server = @SABLE_REPO_BASE_URL@/@CHANNEL@/sable-core/$arch
 
-[os-desktop]
+[sable-desktop]
 SigLevel = Required TrustedOnly
-Server = @OS_REPO_BASE_URL@/@CHANNEL@/os-desktop/$arch
+Server = @SABLE_REPO_BASE_URL@/@CHANNEL@/sable-desktop/$arch
 
-[os-extra]
+[sable-extra]
 SigLevel = Required TrustedOnly
-Server = @OS_REPO_BASE_URL@/@CHANNEL@/os-extra/$arch
+Server = @SABLE_REPO_BASE_URL@/@CHANNEL@/sable-extra/$arch

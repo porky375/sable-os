@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "$script_dir/lib/common.sh"
+load_project_env
+
+require_command blkid
+require_command findmnt
+require_command mkfs.ext4
+require_command truncate
+
+host_directory="${1:-}"
+size_gib="${2:-160}"
+
+[[ -n "$host_directory" ]] || {
+    printf 'usage: %s /path/to/writable/data-volume [size-gib]\n' "$0" >&2
+    exit 2
+}
+if [[ ! "$size_gib" =~ ^[0-9]+$ ]] || ((size_gib < 100 || size_gib > 500)); then
+    printf 'size must be an integer from 100 to 500 GiB\n' >&2
+    exit 2
+fi
+
+host_directory="$(readlink -m -- "$host_directory")"
+[[ -d "$host_directory" ]] || {
+    printf 'storage directory does not exist: %s\n' "$host_directory" >&2
+    exit 1
+}
+[[ "$host_directory" != "/" && "$host_directory" != "/home" && "$host_directory" != "$HOME" ]] || {
+    printf 'refusing unsafe storage directory: %s\n' "$host_directory" >&2
+    exit 1
+}
+
+mount_options="$(findmnt -T "$host_directory" -no OPTIONS)"
+if [[ ",$mount_options," == *,ro,* ]]; then
+    printf 'storage is mounted read-only: %s\n' "$host_directory" >&2
+    printf 'fully shut down Windows and repair the NTFS volume before retrying\n' >&2
+    exit 1
+fi
+[[ -w "$host_directory" ]] || {
+    printf 'storage directory is not writable: %s\n' "$host_directory" >&2
+    exit 1
+}
+
+available_kib="$(df -Pk "$host_directory" | awk 'NR == 2 { print $4 }')"
+required_kib=$(((size_gib + 20) * 1024 * 1024))
+if ((available_kib < required_kib)); then
+    printf 'storage needs at least %d GiB free; only %d GiB is available\n' \
+        "$((size_gib + 20))" "$((available_kib / 1024 / 1024))" >&2
+    exit 1
+fi
+
+image="$host_directory/sable-build.ext4"
+temporary="$host_directory/.sable-build.ext4.partial"
+
+if [[ -e "$image" ]]; then
+    [[ -f "$image" && ! -L "$image" ]] || {
+        printf 'existing build image is not a regular file: %s\n' "$image" >&2
+        exit 1
+    }
+    image_type="$(blkid -p -s TYPE -o value "$image" 2>/dev/null || true)"
+    [[ "$image_type" == "ext4" ]] || {
+        printf 'existing file is not an ext4 build image: %s\n' "$image" >&2
+        exit 1
+    }
+    printf 'Sable build image is already prepared: %s\n' "$image"
+    exit 0
+fi
+
+[[ ! -e "$temporary" ]] || {
+    printf 'remove or inspect the incomplete image before retrying: %s\n' "$temporary" >&2
+    exit 1
+}
+
+trap 'rm -f -- "$temporary"' EXIT
+# Preallocate when the host filesystem supports it (ext4/btrfs) so the image
+# does not grow at runtime; fall back to a sparse file on filesystems that
+# reject fallocate (e.g. NTFS via ntfs-3g). Runtime growth over ntfs-3g causes
+# fragmentation-driven FUSE thrash and has wedged builds. See docs/BUILD_STORAGE.md.
+if ! { command -v fallocate >/dev/null 2>&1 && fallocate -l "${size_gib}G" "$temporary" 2>/dev/null; }; then
+    truncate -s "${size_gib}G" "$temporary"
+fi
+mkfs.ext4 -q -F -L SABLE_BUILD \
+    -E "root_owner=$(id -u):$(id -g),lazy_itable_init=1,lazy_journal_init=1" \
+    "$temporary"
+mv -- "$temporary" "$image"
+trap - EXIT
+
+printf 'Prepared %d GiB Sable build image: %s\n' "$size_gib" "$image"
+printf 'Mount it with: %s/mount-build-storage %q\n' "$script_dir" "$image"

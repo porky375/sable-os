@@ -1,3 +1,4 @@
+import Quickshell
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -5,17 +6,16 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     visible: true
-    width: 980
-    height: 680
-    minimumWidth: 760
-    minimumHeight: 520
-    title: "os_name Settings"
+    width: 860
+    height: 580
+    minimumWidth: 720
+    minimumHeight: 480
+    title: "Sable Settings"
     color: "#101010"
 
     property int selectedSection: 0
     property var sections: [
-        "Appearance", "Taskbar", "Windows", "Workspaces", "Keybinds",
-        "Displays", "Sound", "Power", "Apps", "Privacy", "Profiles"
+        "Appearance", "Displays", "Network", "Sound", "System"
     ]
 
     RowLayout {
@@ -23,7 +23,7 @@ ApplicationWindow {
         spacing: 0
 
         Rectangle {
-            Layout.preferredWidth: 210
+            Layout.preferredWidth: 190
             Layout.fillHeight: true
             color: "#151515"
             border.color: "#2f2f2f"
@@ -34,16 +34,11 @@ ApplicationWindow {
                 spacing: 8
 
                 Label {
-                    text: "os_name"
+                    text: "Sable"
                     color: "#ffffff"
                     font.pixelSize: 20
                     font.bold: true
                     Layout.bottomMargin: 8
-                }
-
-                TextField {
-                    Layout.fillWidth: true
-                    placeholderText: "Search settings"
                 }
 
                 ListView {
@@ -57,7 +52,7 @@ ApplicationWindow {
                         required property string modelData
                         required property int index
                         width: ListView.view.width
-                        height: 38
+                        height: 40
                         text: modelData
                         highlighted: window.selectedSection === index
                         onClicked: window.selectedSection = index
@@ -66,96 +61,171 @@ ApplicationWindow {
             }
         }
 
-        ScrollView {
+        StackLayout {
+            currentIndex: window.selectedSection
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
 
-            ColumnLayout {
-                width: Math.max(520, window.width - 260)
-                spacing: 18
-                anchors.margins: 28
+            Pane {
+                padding: 28
 
-                Label {
-                    text: window.sections[window.selectedSection]
-                    color: "#ffffff"
-                    font.pixelSize: 24
-                    font.bold: true
-                }
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 18
 
-                Label {
-                    text: "Theme"
-                    color: "#d4d4d8"
-                    font.pixelSize: 13
-                    font.bold: true
-                }
-
-                RowLayout {
-                    spacing: 10
-
-                    Repeater {
-                        model: ["#101010", "#f4f4f5", "#3f3f46", "#2563eb"]
-
-                        Rectangle {
-                            required property string modelData
-                            color: modelData
-                            implicitWidth: 42
-                            implicitHeight: 42
-                            radius: 6
-                            border.color: "#777777"
-                            border.width: 1
-                        }
+                    Label {
+                        text: "Appearance"
+                        color: "#ffffff"
+                        font.pixelSize: 24
+                        font.bold: true
                     }
-                }
 
-                Switch {
-                    text: "Use dark appearance"
-                    checked: true
-                }
+                    Switch {
+                        text: "Window blur"
+                        checked: true
+                        onToggled: Quickshell.execDetached(
+                            ["sable-control", "set", "blur",
+                             checked ? "1" : "0"])
+                    }
 
-                Switch {
-                    text: "Enable light background blur"
-                    checked: true
-                }
+                    Switch {
+                        text: "Animations"
+                        checked: true
+                        onToggled: Quickshell.execDetached(
+                            ["sable-control", "set", "animations",
+                             checked ? "1" : "0"])
+                    }
 
-                Label {
-                    text: "Panel opacity"
-                    color: "#d4d4d8"
-                }
+                    Label {
+                        text: "Window opacity"
+                        color: "#d4d4d8"
+                    }
 
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0.55
-                    to: 1.0
-                    value: 0.84
-                }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 0.75
+                        to: 1.0
+                        value: 0.97
+                        stepSize: 0.01
+                        onMoved: Quickshell.execDetached(
+                            ["sable-control", "set", "opacity",
+                             value.toFixed(2)])
+                    }
 
-                Label {
-                    text: "Window opacity"
-                    color: "#d4d4d8"
-                }
+                    Button {
+                        text: "Reset appearance"
+                        onClicked: Quickshell.execDetached(
+                            ["sable-control", "reset"])
+                    }
 
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0.7
-                    to: 1.0
-                    value: 0.94
+                    Item { Layout.fillHeight: true }
                 }
+            }
 
-                Label {
-                    text: "Animation speed"
-                    color: "#d4d4d8"
+            Pane {
+                padding: 28
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 18
+
+                    Label {
+                        text: "Displays"
+                        color: "#ffffff"
+                        font.pixelSize: 24
+                        font.bold: true
+                    }
+
+                    Button {
+                        text: "Open display configuration"
+                        onClicked: Quickshell.execDetached(["wdisplays"])
+                    }
+
+                    Item { Layout.fillHeight: true }
                 }
+            }
 
-                Slider {
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 1
-                    value: 0.85
+            Pane {
+                padding: 28
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 18
+
+                    Label {
+                        text: "Network"
+                        color: "#ffffff"
+                        font.pixelSize: 24
+                        font.bold: true
+                    }
+
+                    Button {
+                        text: "Open network configuration"
+                        onClicked: Quickshell.execDetached(
+                            ["kitty", "--class", "sable-network",
+                             "-e", "nmtui"])
+                    }
+
+                    Item { Layout.fillHeight: true }
                 }
+            }
 
-                Item {
-                    Layout.fillHeight: true
+            Pane {
+                padding: 28
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 18
+
+                    Label {
+                        text: "Sound"
+                        color: "#ffffff"
+                        font.pixelSize: 24
+                        font.bold: true
+                    }
+
+                    Button {
+                        text: "Open volume controls"
+                        onClicked: Quickshell.execDetached(["pavucontrol"])
+                    }
+
+                    Item { Layout.fillHeight: true }
+                }
+            }
+
+            Pane {
+                padding: 28
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 18
+
+                    Label {
+                        text: "System"
+                        color: "#ffffff"
+                        font.pixelSize: 24
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: "Sable Bootstrap Preview"
+                        color: "#d4d4d8"
+                        font.pixelSize: 16
+                    }
+
+                    Button {
+                        text: "Open system monitor"
+                        onClicked: Quickshell.execDetached(
+                            ["kitty", "--class", "sable-system",
+                             "-e", "btop"])
+                    }
+
+                    Button {
+                        text: "Open terminal"
+                        onClicked: Quickshell.execDetached(["kitty"])
+                    }
+
+                    Item { Layout.fillHeight: true }
                 }
             }
         }

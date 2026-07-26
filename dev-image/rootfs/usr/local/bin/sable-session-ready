@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+for _ in {1..30}; do
+    if pgrep -x Hyprland >/dev/null &&
+        pgrep -f 'quickshell.*shell.qml' >/dev/null; then
+        printf 'SABLE_GUI_READY\n' >/dev/ttyS0 2>/dev/null || true
+        break
+    fi
+    sleep 1
+done
+
+if ! pgrep -x Hyprland >/dev/null ||
+    ! pgrep -f 'quickshell.*shell.qml' >/dev/null; then
+    printf 'SABLE_GUI_FAILED\n' >/dev/ttyS0 2>/dev/null || true
+    printf '%s\n' '--- Sable session processes ---' \
+        >/dev/ttyS0 2>/dev/null || true
+    pgrep -a -f 'Hyprland|quickshell' >/dev/ttyS0 2>/dev/null || true
+    exit 1
+fi
+
+required_commands=(
+    btop
+    calamares
+    grim
+    hyprlock
+    kitty
+    mako
+    nmcli
+    pavucontrol
+    sable-installer
+    slurp
+    thunar
+    wdisplays
+    wl-copy
+    wpctl
+)
+failed=0
+for command_name in "${required_commands[@]}"; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        printf 'SABLE_MISSING_COMMAND=%s\n' "$command_name" \
+            >/dev/ttyS0 2>/dev/null || true
+        failed=1
+    fi
+done
+
+if ! systemctl is-active --quiet NetworkManager.service; then
+    printf 'SABLE_INACTIVE_SERVICE=NetworkManager.service\n' \
+        >/dev/ttyS0 2>/dev/null || true
+    failed=1
+fi
+if ! systemctl --user is-active --quiet sable-desktopd.service; then
+    printf 'SABLE_INACTIVE_SERVICE=sable-desktopd.service\n' \
+        >/dev/ttyS0 2>/dev/null || true
+    failed=1
+fi
+desktop_bus_ready=0
+for _ in {1..20}; do
+    if busctl --user --list 2>/dev/null |
+        awk '{print $1}' | grep -qx 'org.sable.Desktop1'; then
+        desktop_bus_ready=1
+        break
+    fi
+    sleep 1
+done
+if ((desktop_bus_ready == 0)); then
+    printf 'SABLE_MISSING_DBUS=org.sable.Desktop1\n' \
+        >/dev/ttyS0 2>/dev/null || true
+    systemctl --user status sable-desktopd.service --no-pager \
+        >/dev/ttyS0 2>/dev/null || true
+    journalctl --user-unit sable-desktopd.service -n 30 --no-pager \
+        >/dev/ttyS0 2>/dev/null || true
+    failed=1
+fi
+
+if ((failed != 0)); then
+    printf 'SABLE_FUNCTIONAL_FAILED\n' >/dev/ttyS0 2>/dev/null || true
+    exit 1
+fi
+
+# Non-fatal internet reachability probe (DNS + HTTPS), retried for DHCP to settle.
+net_ok=0
+for _ in {1..15}; do
+    if curl -sf -m 4 -o /dev/null https://archlinux.org 2>/dev/null; then
+        net_ok=1
+        break
+    fi
+    sleep 1
+done
+if ((net_ok == 1)); then
+    printf 'SABLE_NET_OK\n' >/dev/ttyS0 2>/dev/null || true
+else
+    printf 'SABLE_NET_OFFLINE\n' >/dev/ttyS0 2>/dev/null || true
+fi
+
+touch /run/user/"$(id -u)"/sable-session-ready
+printf 'SABLE_FUNCTIONAL_READY\n' >/dev/ttyS0 2>/dev/null || true

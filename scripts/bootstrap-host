@@ -3,18 +3,32 @@
 set -euo pipefail
 
 packages=(
+    arch-install-scripts
     archiso
     base-devel
+    btrfs-progs
     cmake
+    curl
+    dosfstools
+    e2fsprogs
+    expac
     jq
+    limine
+    pacman-contrib
+    parted
+    python
     qemu-base
+    rsync
+    rust
     shellcheck
+    socat
+    udisks2
     edk2-ovmf
 )
 
 printf 'This installs host-only build dependencies:\n'
 printf '  %s\n' "${packages[*]}"
-printf '\nIt does not install os_name or change disk partitions.\n'
+printf '\nIt does not install sable or change disk partitions.\n'
 printf 'Run the following command after reviewing it:\n\n'
 printf '  sudo pacman -S --needed'
 printf ' %q' "${packages[@]}"
