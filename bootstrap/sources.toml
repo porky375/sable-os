@@ -376,3 +376,11 @@ name = "gpgme"
 source = "https://gnupg.org/ftp/gcrypt/gpgme/gpgme-2.1.2.tar.bz2"
 revision = "gpgme-2.1.2"
 sha256 = "0687a95b299871c4141f507c0f740de6b429c9ac067d0fa4e062e3264df5fb77"
+
+# sqlite: gnupg's TOFU trust database (frontier-audit finding). Amalgamation
+# tarball; its own deps (readline, zlib) are already pinned.
+[[component]]
+name = "sqlite"
+source = "https://sqlite.org/2026/sqlite-autoconf-3530300.tar.gz"
+revision = "sqlite-3.53.3"
+sha256 = "c917d7db16648ec95f714974ace5e5dcf46b7dc70e26600a0a102a3141125db0"

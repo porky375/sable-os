@@ -95,34 +95,43 @@ gnupg, gpgme). bc/cpio record the canonical `ftp.gnu.org` URL with the
 mirror-computed digest; the gnupg stack comes from `gnupg.org`, openssl from
 `openssl.org`, curl from `curl.se`.
 
-Manifest state: **60 pinned, 0 unpinned, 3 frontier** (`bootstrap/check-sources`
-and `bootstrap/check-dependencies` both pass). **Every enumerated stage-0
-component is now pinned** with an immutable revision and SHA-256 — acceptance
-criterion 1 is met for the current enumeration.
+The **crypto/TLS frontier has been audited and closed.** Each of `openssl`,
+`curl`, and `gnupg` was checked against the host's real build. Sable builds a
+**minimal base** — only pacman-critical dependencies are in-closure; heavier
+optionals are disabled at configure time and recorded in each component's `note`:
 
-Two things still stand between this and a `COMPLETE`/independent manifest:
+- **openssl** — required deps (perl, zlib, zstd) pinned; optional `brotli` cert
+  compression disabled.
+- **curl** — built TLS-only (openssl + zlib + nghttp2 + zstd); `krb5`, `libidn2`,
+  `libpsl`, `libssh2`, HTTP/3 (ngtcp2/nghttp3), and `brotli` disabled.
+  `ca-certificates` is runtime trust-store data (a package, not a source).
+- **gnupg** — required gcrypt stack + zlib/bzip2/readline, **plus `sqlite`** for
+  the TOFU trust DB (the one new pin the audit added; its deps readline/zlib were
+  already pinned). Disabled: gnutls/ntbtls (HKPS keyservers), libldap, libusb,
+  tpm2-tss, pinentry (signing-only, not verification).
 
-1. **Frontier subtree review.** `openssl`, `curl`, and `gnupg` remain flagged
-   `frontier = true`. Their *listed* dependencies are all pinned now, but each
-   subtree must be re-audited for leaves not yet enumerated (e.g. curl's
-   optional psl/brotli/zstd, gnupg's optional ntbtls/sqlite) before the flag can
-   be cleared. Clearing all three is required for `status = "COMPLETE"`.
-2. **Signature verification** (acceptance criterion 2) is still the next layer to
-   add to the fetch/verify tooling; today's pins rest on SHA-256 over
-   TLS-authenticated upstreams, several cross-checked against well-known
-   published digests.
+Manifest state: **61 pinned, 0 unpinned, 0 frontier** (`bootstrap/check-sources`
+and `bootstrap/check-dependencies` both pass). **The stage-0 closure enumeration
+is complete** — every component carries an immutable revision and SHA-256, with
+no frontier subtrees left. Acceptance criterion 1 is fully met.
+
+One tooling layer still stands before independence can be asserted:
+
+- **Signature verification** (acceptance criterion 2) — the next layer to add to
+  the fetch/verify tooling; today's pins rest on SHA-256 over TLS-authenticated
+  upstreams, several cross-checked against well-known published digests.
 
 Independence (`independence = true`) additionally requires a phase-3 chroot build
 with zero seed packages and a passing `repo/verify-runtime-closure` — the build,
 not the manifest, is what remains after that.
 
-### Expansion frontier
+### Expansion frontier (resolved 2026-07-25)
 
-Components marked `frontier = true` in `dependencies.toml` (openssl, curl,
-gnupg, and by extension gpgme) have substantial transitive closures of their
-own. They are intentionally confined to phase 3 and need a dedicated follow-up
-recursion before their subtrees can be called complete. Enumerating them here,
-rather than in the toolchain phases, keeps stage-0 minimal.
+The crypto/TLS nodes (openssl, curl, gnupg) once carried `frontier = true`
+because their transitive closures are large. That audit is now complete (see
+*Pinning progress* above): confining Sable to a minimal, pacman-critical feature
+set keeps each closure small and fully enumerated, so no component carries a
+`frontier` flag any longer.
 
 ## Defensible build order
 

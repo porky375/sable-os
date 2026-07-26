@@ -486,10 +486,10 @@ pinned = true
 needed_by = ["systemd"]
 note = "libcrypt, split out of glibc."
 
-# --- chroot-base: crypto / TLS expansion frontier ---
-# These subtrees have large transitive closures of their own (gnupg pulls in a
-# full libgcrypt stack; curl pulls a TLS stack). They stay in chroot-base and
-# need a dedicated follow-up recursion before their leaves are complete.
+# --- chroot-base: crypto / TLS stack (frontier audit complete 2026-07-25) ---
+# Each subtree was audited against the host's real build. Sable builds a MINIMAL
+# base: only the pacman-critical deps are in-closure; heavier optional features
+# are disabled at configure time and recorded per component below.
 
 [[component]]
 name = "openssl"
@@ -497,8 +497,8 @@ phase = "chroot-base"
 role = "crypto"
 upstream = "https://www.openssl.org/"
 pinned = true
-frontier = true
 needed_by = ["linux-lts", "curl", "libarchive"]
+note = "Required deps (perl build-time, zlib, zstd) pinned. Optional brotli TLS cert compression is disabled."
 
 [[component]]
 name = "libarchive"
@@ -523,9 +523,8 @@ phase = "chroot-base"
 role = "tls"
 upstream = "https://curl.se/"
 pinned = true
-frontier = true
 needed_by = ["pacman"]
-note = "libcurl; requires openssl, zlib, nghttp2."
+note = "libcurl built TLS-only: openssl + zlib + nghttp2 + zstd (all pinned). Disabled: krb5, libidn2, libpsl, libssh2, HTTP/3 (ngtcp2/nghttp3), brotli. ca-certificates is runtime trust-store data (a package, not a source)."
 
 [[component]]
 name = "libgpg-error"
@@ -573,9 +572,17 @@ phase = "chroot-base"
 role = "crypto"
 upstream = "https://gnupg.org/"
 pinned = true
-frontier = true
 needed_by = ["pacman"]
-note = "Runtime gpg for package signature verification."
+note = "Runtime gpg for package signature verification. Required deps (the pinned libgcrypt stack, zlib, bzip2, readline) plus sqlite for the TOFU trust DB. Disabled for the minimal base: gnutls/ntbtls (HKPS keyservers), libldap (LDAP keyservers), libusb (smartcards), tpm2-tss, pinentry (needed only for signing, not verification)."
+
+[[component]]
+name = "sqlite"
+phase = "chroot-base"
+role = "system-lib"
+upstream = "https://sqlite.org/"
+pinned = true
+needed_by = ["gnupg"]
+note = "TOFU trust database for gnupg. Amalgamation build; deps (readline, zlib) pinned."
 
 [[component]]
 name = "gpgme"
